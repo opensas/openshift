@@ -1,0 +1,4 @@
+self: play -> openshift 0.1
+
+require:
+    - play
