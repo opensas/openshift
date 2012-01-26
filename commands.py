@@ -60,7 +60,7 @@ def execute(**kargs):
 
 	#print options
 
-	if command == "hello": 		print "~ Hello"
+	if command == "hello": 		print "~ Hello from openshift module"
 	if command == "chk": 		openshift_check(app, options)
 	if command == "info": 		openshift_info(options)
 	if command == "app": 		openshift_app(options)
@@ -97,7 +97,7 @@ def deploy_app(app, env, options):
 
 	#could not delete deploy_folder folder
 	if os.path.exists(deploy_folder):
-		error_message("ERROR - '%s' folder already exists and could not be deleted\nremove it and try again" % odeploy_folder)
+		error_message("ERROR - '%s' folder already exists and could not be deleted\nremove it and try again" % deploy_folder)
 
 	os.mkdir(deploy_folder)
 	if not os.path.exists(deploy_folder):
