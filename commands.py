@@ -2,17 +2,27 @@ import sys
 import subprocess
 import re
 import os
+import imp
 import shutil
 import webbrowser
 from datetime import datetime
 
 from optparse import OptionParser
 
+def import_module(module_name, file_path=""):
+	if file_path == "": file_path = module_name + ".py"
+	source = 	os.path.join(os.path.dirname(os.path.realpath(__file__)), file_path)
+	return imp.load_source(module_name, source)
+
+#patched_war = imp.load_source('patched_war', './patched_war.py')
+patched_war = import_module('patched_war')
+#from patched_war.py import package_as_war
+
 MODULE = 'openshift'
 
 # Commands that are specific to your module
 COMMANDS = []
-for command in ["hello", "chk", "info", "app", "create", "open", "deploy"]:
+for command in ["test", "hello", "chk", "info", "app", "create", "open", "deploy"]:
     COMMANDS.append("openshift:%s" % command)
     COMMANDS.append("rhc:%s" % command)
 
@@ -60,6 +70,7 @@ def execute(**kargs):
 
 	#print options
 
+	if command == "test": 		openshift_test(app, env, options)
 	if command == "hello": 		print "~ Hello from openshift module"
 	if command == "chk": 		  openshift_check(app, options)
 	if command == "info": 		openshift_info(options)
@@ -84,6 +95,15 @@ def after(**kargs):
 
     if command == "new":
         pass
+
+def openshift_test(app, env, options):
+	print "testing 1,2,3"
+
+	war_path = '/home/sas/Dropbox/Public/devel/play/apps/openshift/openshift-test/.openshift/openshifttest/deployments/ROOT.war'
+	war_zip_path = None
+	war_exclusion_list = ['.openshift']
+
+	patched_war.package_as_war(app, env, war_path, war_zip_path, war_exclusion_list)
 
 def deploy_app(app, env, options):
 	openshift_app = check_app(app, options)
@@ -115,11 +135,19 @@ def deploy_app(app, env, options):
 	dodeploy_file.close()
 
 	war_path = os.path.join(deploy_folder, war_file)
+	war_path = os.path.normpath(os.path.abspath(war_path))
 
-	out, err, ret = shellexecute( ['play', 'war', '-o', war_path, '--exclude', '.openshift'], msg="Generating war file", debug=options.debug, output=True)
-	if err != '':
-		err.insert(0, "ERROR - error generating war file to %s" % war_path)
-		error_message(err)
+	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['.openshift'])
+
+	if not os.path.exists(war_path):
+		error_message("ERROR - '%s' exploded war forlder could not be created" % war_path)
+
+#	out, err, ret = shellexecute( ['play', 'war', '-o', war_path, '--exclude', '.openshift'], msg="Generating war file", debug=options.debug, output=True)
+#	if err != '':
+#		err.insert(0, "ERROR - error generating war file to %s" % war_path)
+#		error_message(err)
+
+	#TODO!!! check if war folder was successfully created
 
 	#add files
 	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
@@ -572,4 +600,3 @@ class openshift_application:
 	def __repr__(self):
 		return 'name: %s, creation: %s, framework: %s, repo: %s, url: %s' % \
 		(self.name, self.creation, self.framework, self.repo, self.url)
-
