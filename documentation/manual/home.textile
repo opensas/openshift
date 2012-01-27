@@ -1,5 +1,7 @@
 h1. {module name}
 
+modified
+
 p(note). Write your module documentation in this file, possibly linking to other Textile files, and delete these notes when you are finished.
 
 p(note). Start with a clear statement of what the module is and what it is for. Link to any third-party libraries that the module is based on.
