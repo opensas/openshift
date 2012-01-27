@@ -5,6 +5,7 @@ import os
 import imp
 import shutil
 import webbrowser
+import time
 from datetime import datetime
 from optparse import OptionParser
 
@@ -14,7 +15,6 @@ def import_module(module_name, file_path=""):
 	if file_path == "": file_path = module_name + ".py"
 	source = 	os.path.join(os.path.dirname(os.path.realpath(__file__)), file_path)
 	return imp.load_source(module_name, source)
-
 
 #custom imports
 patched_war = import_module('patched_war')
@@ -149,19 +149,7 @@ def deploy_app(args, app, env, options):
 	if not os.path.exists(war_path):
 		error_message("ERROR - '%s' exploded war forlder could not be created" % war_path)
 
-#	out, err, ret = shellexecute( ['play', 'war', '-o', war_path, '--exclude', '.openshift'], msg="Generating war file", debug=options.debug, output=True)
-#	if err != '':
-#		err.insert(0, "ERROR - error generating war file to %s" % war_path)
-#		error_message(err)
-
-	#TODO!!! check if war folder was successfully created
-
 	#add files
-	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
-	if err != '':
-		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
-		error_message(err)
-
 	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
 	if err != '':
 		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
@@ -179,7 +167,10 @@ def deploy_app(args, app, env, options):
 
 	message(["app successfully deployed", "issue play rhc:open to see it in action"])
 
-	if options.open == True: open_app(options, openshift_app)
+	if options.open == True: 
+		message(["waiting 10 seconds before opening application, if it's not ready, just give openshift some time and press F5","if it's still not working try with 'play rhc:logs' to see what's going on"])
+		time.sleep(10)
+		open_app(options, openshift_app)
 
 def open_app(options, openshift_app=None):
 	if openshift_app == None: openshift_app = appinfo(options)
