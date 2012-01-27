@@ -23,7 +23,7 @@ MODULE = 'openshift'
 
 # Commands that are specific to your module
 COMMANDS = []
-for command in ["test", "hello", "chk", "info", "app", "create", "open", "deploy"]:
+for command in ["test", "hello", "chk", "info", "app", "create", "open", "deploy", "logs"]:
     COMMANDS.append("openshift:%s" % command)
     COMMANDS.append("rhc:%s" % command)
 
@@ -45,7 +45,8 @@ def execute(**kargs):
 	parser.add_option("-l", "--rhlogin",    default='',     dest="rhlogin",     help="Red Hat login (RHN or OpenShift login with OpenShift Express access)")
 	parser.add_option("-p", "--password",   default='',     dest="password",    help="RHLogin password  (optional, will prompt)")
 	parser.add_option("-d", "--debug",      default=False,  dest="debug",       action="store_true", help="Print Debug info")
-	parser.add_option("", "--timeout",      default='',     dest="timeout",     help="Timeout, in seconds, for connection")
+	parser.add_option("",   "--timeout",    default='',     dest="timeout",     help="Timeout, in seconds, for connection")
+	parser.add_option("-o", "--open",      	default=False,  dest="open",     		action="store_true", help="Open site after deploying")
 	options, args = parser.parse_args(args)
 
 	if options.app == '': options.app = app.readConf('openshift.application.name')
@@ -59,7 +60,7 @@ def execute(**kargs):
 	if options.password == '': options.password = app.readConf('openshift.password')
 	if options.password == '': message([\
 		"Password not specified. You'll be asked to enter your password", \
-		"You can provide it using the command line or setting openshift.password in application.conf file."])
+		"You can provide it using the -p PASSWORD command line or setting openshift.password in application.conf file."])
 
 	if options.debug == '': options.debug = app.readConf('openshift.debug')
 	if options.debug == '': options.debug = False
@@ -78,6 +79,7 @@ def execute(**kargs):
 	if command == "app": 		  openshift_app(options)
 	if command == "create": 	create_app(app, options)
 	if command == "open": 		open_app(options)
+	if command == "logs": 		openshift_logs(options)
 	if command == "deploy": 	deploy_app(args, app, env, options)
 
 # This will be executed before any command (new, run...)
@@ -107,6 +109,7 @@ def openshift_test(app, env, options):
 	patched_war.package_as_war(app, env, war_path, war_zip_path, war_exclusion_list)
 
 def deploy_app(args, app, env, options):
+	check_appname(options.app)
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
 
@@ -176,13 +179,30 @@ def deploy_app(args, app, env, options):
 
 	message(["app successfully deployed", "issue play rhc:open to see it in action"])
 
-def open_app(options):
-	openshift_app = appinfo(options)
+	if options.open == True: open_app(options, openshift_app)
+
+def open_app(options, openshift_app=None):
+	if openshift_app == None: openshift_app = appinfo(options)
 	if openshift_app == None:
 		message("the application '%s' does not exist for login '%s' in openshift" % (options.app, options.rhlogin))
 	url = openshift_app.url
 	if options.subdomain != '': url = url.rstrip('/') + '/' + options.subdomain.strip('/')
 	webbrowser.open(url, new=2)
+
+def openshift_logs(options):
+	create_cmd = ["rhc-tail-files"]
+
+	if options.debug == True: create_cmd.append("-d")
+
+	for item in ["app", "rhlogin", "password", "timeout"]:
+		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
+			create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
+
+	out, err, ret = shellexecute( create_cmd, output=True, debug=options.debug, msg="Running rhc-tail-files")
+	#will always return error 255, because user has to stop process	
+	if err != '' and ret != 255:
+		err.insert(0, "Failed to execute rhc-tail-files, check that rhc-tail-files is installed.")
+		error_message(err)
 
 def openshift_check(app, options):
 	check_java(options)
