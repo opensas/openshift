@@ -6,7 +6,6 @@ import imp
 import shutil
 import webbrowser
 from datetime import datetime
-
 from optparse import OptionParser
 
 def import_module(module_name, file_path=""):
@@ -14,9 +13,8 @@ def import_module(module_name, file_path=""):
 	source = 	os.path.join(os.path.dirname(os.path.realpath(__file__)), file_path)
 	return imp.load_source(module_name, source)
 
-#patched_war = imp.load_source('patched_war', './patched_war.py')
+#custom imports
 patched_war = import_module('patched_war')
-#from patched_war.py import package_as_war
 
 MODULE = 'openshift'
 

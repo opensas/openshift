@@ -5,6 +5,7 @@ import fileinput
 import shutil
 import zipfile
 
+
 def package_as_war(app, env, war_path, war_zip_path, war_exclusion_list = None):
     if war_exclusion_list is None:
         war_exclusion_list = []
