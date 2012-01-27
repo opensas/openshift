@@ -8,6 +8,8 @@ import webbrowser
 from datetime import datetime
 from optparse import OptionParser
 
+import play.commands.precompile
+
 def import_module(module_name, file_path=""):
 	if file_path == "": file_path = module_name + ".py"
 	source = 	os.path.join(os.path.dirname(os.path.realpath(__file__)), file_path)
@@ -76,7 +78,7 @@ def execute(**kargs):
 	if command == "app": 		  openshift_app(options)
 	if command == "create": 	create_app(app, options)
 	if command == "open": 		open_app(options)
-	if command == "deploy": 	deploy_app(app, env, options)
+	if command == "deploy": 	deploy_app(args, app, env, options)
 
 # This will be executed before any command (new, run...)
 def before(**kargs):
@@ -104,7 +106,7 @@ def openshift_test(app, env, options):
 
 	patched_war.package_as_war(app, env, war_path, war_zip_path, war_exclusion_list)
 
-def deploy_app(app, env, options):
+def deploy_app(args, app, env, options):
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
 
@@ -135,6 +137,9 @@ def deploy_app(app, env, options):
 
 	war_path = os.path.join(deploy_folder, war_file)
 	war_path = os.path.normpath(os.path.abspath(war_path))
+
+	# Precompile first
+	play.commands.precompile.execute(command='war', app=app, args=args, env=env)
 
 	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['.openshift'])
 
