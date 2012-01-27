@@ -169,11 +169,30 @@ def check_java(options):
 		err.insert(0, "ERROR - Failed to execute 'java -version', check that java 1.6.x or lower is installed.")
 		error_message(err)
 
-	print err
-	java_version = err[0].splitlines()[0]
-	print java_version
+	java_version = parse_java_version(err[0].splitlines())
 
-	message("OK! - checked java version: %s" % err)
+	if java_version == '':
+		err = "ERROR - Could not get java version executing 'java -version', check that java 1.6.x or lower is installed."
+		error_message(err)
+
+	if not (java_version < "1.7"):
+		err = "ERROR - Java %s found. Java 1.7 or higher is not supported on openshift yet, check that java 1.6.x or lower is installed." % java_version
+		error_message(err)
+
+	message("OK! - checked java version: %s" % java_version)
+
+def parse_java_version(lines):
+
+	for line in lines:
+		match = re.search("1\.[0-9]\.[0-9_]+", line)
+		if match != None:
+			break
+
+	if match == None:
+		return ""
+
+	return match.group(0)
+
 
 def check_git(options):
 	out, err, ret = shellexecute(["git", "version"], debug=options.debug)
