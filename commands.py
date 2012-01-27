@@ -43,7 +43,7 @@ def execute(**kargs):
 	if options.subdomain == '': options.subdomain = app.readConf('openshift.application.subdomain')
 
 	if options.rhlogin == '': options.rhlogin = app.readConf('openshift.rhlogin')
-	if options.rhlogin == '': error_message("You must provide rhlogin parameter using the command line or setting openshift.rhlogin in application.conf file.")
+	if options.rhlogin == '': error_message("You must provide rhlogin parameter using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
 
 	if options.password == '': options.password = app.readConf('openshift.password')
 	if options.password == '': message([\
@@ -61,9 +61,9 @@ def execute(**kargs):
 	#print options
 
 	if command == "hello": 		print "~ Hello from openshift module"
-	if command == "chk": 		openshift_check(app, options)
+	if command == "chk": 		  openshift_check(app, options)
 	if command == "info": 		openshift_info(options)
-	if command == "app": 		openshift_app(options)
+	if command == "app": 		  openshift_app(options)
 	if command == "create": 	create_app(app, options)
 	if command == "open": 		open_app(options)
 	if command == "deploy": 	deploy_app(app, env, options)
@@ -116,28 +116,28 @@ def deploy_app(app, env, options):
 
 	war_path = os.path.join(deploy_folder, war_file)
 
-	out, err = shellexecute( ['play', 'war', '-o', war_path, '--exclude', '.openshift'], msg="Generating war file", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['play', 'war', '-o', war_path, '--exclude', '.openshift'], msg="Generating war file", debug=options.debug, output=True)
 	if err != '':
 		err.insert(0, "ERROR - error generating war file to %s" % war_path)
 		error_message(err)
 
 	#add files
-	out, err = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
 	if err != '':
 		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
 		error_message(err)
 
-	out, err = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
 	if err != '':
 		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
 		error_message(err)
 
-	out, err = shellexecute( ['git', 'commit', '-m', '"deployed at ' + date + '"'], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'commit', '-m', '"deployed at ' + date + '"'], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
 	if err != '':
 		err.insert(0, "ERROR - error committing deployments")
 		error_message(err)
 
-	out, err = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing to origin", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing to origin", debug=options.debug, output=True)
 	if err != '':
 		err.insert(0, "ERROR - error pushing changes")
 		error_message(err)
@@ -153,6 +153,7 @@ def open_app(options):
 	webbrowser.open(url, new=2)
 
 def openshift_check(app, options):
+	check_java(options)
 	check_git(options)
 	check_ruby(options)
 	check_rhc(options)
@@ -161,22 +162,35 @@ def openshift_check(app, options):
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
 
+def check_java(options):
+	out, err, ret = shellexecute(["java", "-version"], debug=options.debug, raw_error=True)
+	#java -version outputs to stderr
+	if ret != 0:
+		err.insert(0, "ERROR - Failed to execute 'java -version', check that java 1.6.x or lower is installed.")
+		error_message(err)
+
+	print err
+	java_version = err[0].splitlines()[0]
+	print java_version
+
+	message("OK! - checked java version: %s" % err)
+
 def check_git(options):
-	out, err = shellexecute(["git", "version"], debug=options.debug)
+	out, err, ret = shellexecute(["git", "version"], debug=options.debug)
 	if err != '':
 		err.insert(0, "ERROR - Failed to execute git, check that git is installed.")
 		error_message(err)
 	message("OK! - checked git version: %s" % out)
 
 def check_ruby(options):
-	out, err = shellexecute(["ruby", "-v"], debug=options.debug)
+	out, err, ret = shellexecute(["ruby", "-v"], debug=options.debug)
 	if err != '':
 		err.insert(0, "ERROR - Failed to execute ruby, check that ruby is installed.")
 		error_message(err)
 	message("OK! - checked ruby version: %s" % out)
 
 def check_rhc(options):
-	out, err = shellexecute(["gem", "list", "rhc"], debug=options.debug)
+	out, err, ret = shellexecute(["gem", "list", "rhc"], debug=options.debug)
 	if err != '':
 		err.insert(0, "ERROR - Failed to execute gem list rhc, check that gem is installed.")
 		error_message(err)
@@ -191,7 +205,7 @@ def check_rhc_chk(options):
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 			create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err = shellexecute( create_cmd, output=True, debug=options.debug, msg="Running rhc-chk")
+	out, err, ret = shellexecute( create_cmd, output=True, debug=options.debug, msg="Running rhc-chk")
 	if err != '':
 		err.insert(0, "Failed to execute rhc-chk, check that rhc-chk is installed.")
 		error_message(err)
@@ -229,11 +243,11 @@ def check_local_repo(app, openshift_app, options):
 	if not os.path.exists(git_folder):
 		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - '%s' folder does not exists, '%s' does not seem to be a valid git repository" % (git_folder, app_folder) )
 
-	out, err = shellexecute( ['git', 'status'], location=app_folder, debug=options.debug)
+	out, err, ret = shellexecute( ['git', 'status'], location=app_folder, debug=options.debug)
 	if err != '':
 		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - folder '%s' exists but does not seem to be a valid git repo" % git_folder )
 
-	out, err = shellexecute( ['git', 'remote', '-v'], location=app_folder, debug=options.debug)
+	out, err, ret = shellexecute( ['git', 'remote', '-v'], location=app_folder, debug=options.debug)
 	if err != '':
 		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - error fetching folder remotes for '%s' git repository" )
 
@@ -282,7 +296,7 @@ def create_app(app, options):
 			if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 				create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-		out, err = shellexecute( create_cmd, location=openshift_folder, output=True, debug=options.debug, msg="Creating %s application at openshift" % options.app)
+		out, err, ret = shellexecute( create_cmd, location=openshift_folder, output=True, debug=options.debug, msg="Creating %s application at openshift" % options.app)
 		print out
 		print err
 		if err != '':
@@ -332,26 +346,26 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 		error_message("ERROR - '%s' folder could not be created" % app_folder)
 
 	#init repo
-	out, err = shellexecute( ['git', 'init'], location=app_folder, msg="Creating git repo")
+	out, err, ret = shellexecute( ['git', 'init'], location=app_folder, msg="Creating git repo")
 	if err != '':
 		err.insert(0, "ERROR - error creating git repository at '%s'" % app_folder)
 		error_message(err)
 	
 	#add remote
-	out, err = shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, msg="Adding %s as remote origin" % openshift_app.repo, debug=options.debug)
+	out, err, ret = shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, msg="Adding %s as remote origin" % openshift_app.repo, debug=options.debug)
 	if err != '':
 		err.insert(0, "ERROR - error adding %s as a remote repo to '%s'" % (openshift_app.repo, app_folder))
 		error_message(err)
 
 	#fetch remote
-	out, err = shellexecute( ['git', 'fetch', 'origin'], location=app_folder, msg="Fetching from origin...", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'fetch', 'origin'], location=app_folder, msg="Fetching from origin...", debug=options.debug, output=True)
 	#git fetch returns an errors, even if it works ok!
 	#if err != '':
 	#	err.insert(0, "ERROR - error fetching from origin (%s) repo" % (openshift_app.repo))
 	#	error_message(err)
 
 	#merge remote
-	out, err = shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, msg="Merging from origin/master", debug=options.debug)
+	out, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, msg="Merging from origin/master", debug=options.debug)
 	if err != '':
 		err.insert(0, "ERROR - error merging from from origin/master (%s)" % (openshift_app.repo))
 		error_message(err)
@@ -365,22 +379,22 @@ def local_repo_remove_default_app(app_folder, options):
 	#remove useless openshift app
 	if os.path.exists(os.path.join(app_folder, 'src')) or os.path.exists(os.path.join(app_folder, 'pom.xml')):
 		#remove default app
-		out, err = shellexecute( ['rm', '-fr', 'src', 'pom.xml'], location=app_folder, msg="Removing default app", debug=options.debug)
+		out, err, ret = shellexecute( ['rm', '-fr', 'src', 'pom.xml'], location=app_folder, msg="Removing default app", debug=options.debug)
 		if err != '':
 			err.insert(0, "ERROR - error removing default application")
 			error_message(err)
 
-		out, err = shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug)
+		out, err, ret = shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug)
 		if err != '':
 			err.insert(0, "ERROR - error adding changes to be committed")
 			error_message(err)
 
-		out, err = shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=app_folder, debug=options.debug)
+		out, err, ret = shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=app_folder, debug=options.debug)
 		if err != '':
 			err.insert(0, "ERROR - error commiting changes")
 			error_message(err)
 
-		out, err = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing changes to origin...", debug=options.debug)
+		out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing changes to origin...", debug=options.debug)
 		#it works ok, but it reports an error...
 		#if err != '':
 		#	err.insert(0, "ERROR - error pushing changes to origin")
@@ -396,7 +410,7 @@ def openshift_info(options):
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 			info_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err = shellexecute(info_cmd, True)
+	out, err, ret = shellexecute(info_cmd, True)
 
 	if err != '':
 		err.insert(0, "Failed to execute rhc-user-info, check that rhc-user-info is installed.")
@@ -418,7 +432,7 @@ def appsinfo(options):
 
 	if options.password != '': info_cmd.append("--password=%s" % options.password)
 
-	out, err = shellexecute(info_cmd, msg="Contacting openshift...", debug=options.debug)
+	out, err, ret = shellexecute(info_cmd, msg="Contacting openshift...", debug=options.debug)
 
 	if err != '':
 		err.insert(0, "Failed to execute rhc-user-info, check that rhc-user-info is installed.")
@@ -443,12 +457,12 @@ def error_message(err):
 	message(err)
 	sys.exit(-1)
 
-def shellexecute(params, output=False, location=None, debug=False, msg=None):
+def shellexecute(params, output=False, location=None, debug=False, msg=None, raw_error=False):
 
 	#development
 	#debug = True
 
-	out, err, returncode = '', '', -1
+	out, err, ret = '', '', -1
 
 	if msg != None: message(msg)
 
@@ -462,11 +476,11 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None):
 			os.chdir(location)
 
 		if output:
-			returncode = subprocess.call(params)
+			ret = subprocess.call(params)
 		else:
 			proc = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 			(out, err) = proc.communicate()
-			returncode = proc.returncode
+			ret = proc.returncode
 
 			#if output:
 			#	if out != '': print out
@@ -474,14 +488,15 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None):
 
 			if err != '': err = [err];			
 
-		if returncode != 0:
+		if ret != 0:
 			if err == '': err = []
-			err.append("process returned code %s" % proc.returncode)
+			if not raw_error:
+				err.append("process returned code %s" % ret)
 
 	except Exception as e:
 		err = [ str(e), str(sys.exc_info()[0]) ]
 
-	if err != '': 
+	if err != '' and not raw_error: 
 		err.insert(0, "error executing: " + " ".join(params))
 
 	if location != None: os.chdir(save_dir)
@@ -490,7 +505,7 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None):
 		print out
 		print err
 
-	return out, err
+	return out, err, ret
 
 def parseuserinfo(data):
 	apps, app = {}, None
