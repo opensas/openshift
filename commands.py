@@ -23,7 +23,7 @@ MODULE = 'openshift'
 
 # Commands that are specific to your module
 COMMANDS = []
-for command in ["test", "hello", "chk", "info", "app", "create", "open", "deploy", "logs"]:
+for command in ["test", "hello", "chk", "info", "app", "create", "open", "deploy", "destroy", "logs"]:
     COMMANDS.append("openshift:%s" % command)
     COMMANDS.append("rhc:%s" % command)
 
@@ -47,6 +47,8 @@ def execute(**kargs):
 	parser.add_option("-d", "--debug",      default=False,  dest="debug",       action="store_true", help="Print Debug info")
 	parser.add_option("",   "--timeout",    default='',     dest="timeout",     help="Timeout, in seconds, for connection")
 	parser.add_option("-o", "--open",      	default=False,  dest="open",     		action="store_true", help="Open site after deploying")
+	parser.add_option("-b", "--bypass",     default=False,  dest="bypass",     	action="store_true", help="Bypass warnings")
+
 	options, args = parser.parse_args(args)
 
 	if options.app == '': options.app = app.readConf('openshift.application.name')
@@ -79,6 +81,7 @@ def execute(**kargs):
 	if command == "open": 		open_app(options)
 	if command == "logs": 		openshift_logs(options)
 	if command == "deploy": 	deploy_app(args, app, env, options)
+	if command == "destroy": 	openshift_destroy(app, options)
 
 # This will be executed before any command (new, run...)
 def before(**kargs):
@@ -173,7 +176,8 @@ def deploy_app(args, app, env, options):
 def open_app(options, openshift_app=None):
 	if openshift_app == None: openshift_app = appinfo(options)
 	if openshift_app == None:
-		message("the application '%s' does not exist for login '%s' in openshift" % (options.app, options.rhlogin))
+		error_message("the application '%s' does not exist for login '%s' in openshift" % (options.app, options.rhlogin))
+
 	url = openshift_app.url
 	if options.subdomain != '': url = url.rstrip('/') + '/' + options.subdomain.strip('/')
 	webbrowser.open(url, new=2)
@@ -192,6 +196,50 @@ def openshift_logs(options):
 	if err != '' and ret != 255:
 		err.insert(0, "Failed to execute rhc-tail-files, check that rhc-tail-files is installed.")
 		error_message(err)
+
+def openshift_destroy(app, options):
+	destroy_cmd = ["rhc-ctl-app"]
+
+	if not options.bypass:
+		message( [
+			"!!!! WARNING !!!! WARNING !!!! WARNING !!!!", 
+			"You are about to destroy the '%s' application." % options.app, 
+			"", 
+			"This is NOT reversible, all remote data for this application will be removed."
+		] )
+
+		answer = raw_input("~ Do you want to destroy this application (y/n): [%s] " % "no")
+
+		answer = answer.strip().lower()
+		if answer not in ['yes', 'y']:
+			error_message("the application '%s' was not destroyed" % options.app)
+
+	#first, clean up .openshift folder
+	openshift_folder = os.path.join(app.path, '.openshift')
+
+	#delete openshift_folder to leave everything clean
+	if os.path.exists(openshift_folder): 
+		message( "removing %s folder" % openshift_folder)
+		shutil.rmtree(openshift_folder)
+
+	#could not delete deploy_folder folder
+	if os.path.exists(openshift_folder):
+		error_message("ERROR - '%s' folder could not be deleted\nremove it and try again" % openshift_folder)
+
+	if options.debug == True: create_cmd.append("--debug")
+
+	destroy_cmd.append('--command=destroy')
+	destroy_cmd.append('--bypass')
+
+	for item in ["app", "rhlogin", "password", "timeout"]:
+		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
+			destroy_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
+
+	out, err, ret = shellexecute( destroy_cmd, output=True, debug=options.debug, msg="Running rhc-ctl-app --command=destroy --app=%s" % options.app)
+	if err != '':
+		err.insert(0, "Failed to execute rhc-ctl-app, check that rhc-ctl-app is installed.")
+		error_message(err)
+
 
 def openshift_check(app, options):
 	check_java(options)
@@ -278,8 +326,12 @@ def check_appname(appname):
 def check_app(app, options):
 	openshift_app = appinfo(options)
 	if openshift_app == None:
-		message("the application '%s' does not exist for login '%s' in openshift" % (options.app, options.rhlogin))
-		answer = raw_input("~ Do you want to create it? [%s] " % "yes")
+
+		if options.bypass == True:
+			answer = 'yes'
+		else:
+			message("the application '%s' does not exist for login '%s' in openshift" % (options.app, options.rhlogin))
+			answer = raw_input("~ Do you want to create it? [%s] " % "yes")
 
 		answer = answer.strip().lower()
 		if answer in ['yes', 'y', '']:
@@ -357,8 +409,6 @@ def create_app(app, options):
 				create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
 		out, err, ret = shellexecute( create_cmd, location=openshift_folder, output=True, debug=options.debug, msg="Creating %s application at openshift" % options.app)
-		print out
-		print err
 		if err != '':
 			err.insert(0, "Failed to execute rhc-create-app, check that rhc-create-app is installed.")
 			error_message(err)
@@ -376,6 +426,9 @@ def create_app(app, options):
 
 def create_local_repo(app, openshift_app, options, confirmMessage=''):
 
+	if openshift_app == None:
+		error_message("Application not found at openshift.")
+
 	if confirmMessage != '':
 		message(confirmMessage)
 		answer = raw_input("~ Do you want to create local repo and fetch openshift application? [%s] " % "yes")
@@ -383,9 +436,6 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 		answer = answer.strip().lower()
 		if answer not in ['yes', 'y', '']:
 			error_message("the local repo is not correct")
-
-	if openshift_app == None:
-		error_message("Application not found at openshift.")
 
 	openshift_folder = os.path.join(app.path, '.openshift')
 	
