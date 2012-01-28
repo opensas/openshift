@@ -420,9 +420,9 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 	#fetch remote
 	out, err, ret = shellexecute( ['git', 'fetch', 'origin'], location=app_folder, msg="Fetching from origin...", debug=options.debug, output=True)
 	#git fetch returns an errors, even if it works ok!
-	#if err != '':
-	#	err.insert(0, "ERROR - error fetching from origin (%s) repo" % (openshift_app.repo))
-	#	error_message(err)
+	if err != '' and ret != 0:
+		err.insert(0, "ERROR - error fetching from origin (%s) repo" % (openshift_app.repo))
+		error_message(err)
 
 	#merge remote
 	out, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, msg="Merging from origin/master", debug=options.debug)
@@ -456,9 +456,9 @@ def local_repo_remove_default_app(app_folder, options):
 
 		out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing changes to origin...", debug=options.debug)
 		#it works ok, but it reports an error...
-		#if err != '':
-		#	err.insert(0, "ERROR - error pushing changes to origin")
-		#	error_message(err)
+		if err != '' and ret != 0:
+			err.insert(0, "ERROR - error pushing changes to origin")
+			error_message(err)
 
 def openshift_info(options):
 	info_cmd = ["rhc-domain-info", "--apps"]
