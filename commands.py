@@ -22,10 +22,20 @@ patched_war = import_module('patched_war')
 MODULE = 'openshift'
 
 # Commands that are specific to your module
-COMMANDS = []
-for command in ["test", "hello", "chk", "info", "app", "create", "open", "deploy", "destroy", "logs"]:
-    COMMANDS.append("openshift:%s" % command)
-    COMMANDS.append("rhc:%s" % command)
+COMMANDS = [
+	"rhc:test", "rhc:hello", "rhc:chk", "rhc:info", "rhc:app", "rhc:create", "rhc:open", "rhc:deploy", "rhc:destroy", "logs"
+]
+
+HELP = {
+	'rhc:chk': 			'Check openshift prerequisites, application and git repo.',
+	'rhc:info': 		'Displays information about user and configured applications.',
+	'rhc:app': 			'Displays basic information about current application.',
+	'rhc:create': 	'Creates application on openshift.',
+	'rhc:open': 		'Opens a web browser at the application deployed on openshift.',
+	'rhc:deploy': 	'Deploys application on openshift.',
+	'rhc:destroy': 	'Destroys application on openshift.',
+	'rhc:destroy': 	'Show the logs of the application on openshift.'
+}
 
 class OpenshiftOptionParser(OptionParser):
     def error(self, msg):
