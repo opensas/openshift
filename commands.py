@@ -31,7 +31,7 @@ HELP = {
 	'rhc:info': 		'Displays information about user and configured applications.',
 	'rhc:app': 			'Displays basic information about current application.',
 	'rhc:create': 	'Creates application on openshift.',
-	'rhc:open': 		'Opens a web browser at the application deployed on openshift.',
+	'rhc:open': 		'Opens the application deployed on openshift in web browser.',
 	'rhc:deploy': 	'Deploys application on openshift.',
 	'rhc:destroy': 	'Destroys application on openshift.',
 	'rhc:destroy': 	'Show the logs of the application on openshift.'
@@ -113,12 +113,6 @@ def after(**kargs):
 def openshift_test(app, env, options):
 	print "testing 1,2,3"
 
-	war_path = '/home/sas/Dropbox/Public/devel/play/apps/openshift/openshift-test/.openshift/openshifttest/deployments/ROOT.war'
-	war_zip_path = None
-	war_exclusion_list = ['.openshift']
-
-	patched_war.package_as_war(app, env, war_path, war_zip_path, war_exclusion_list)
-
 def deploy_app(args, app, env, options):
 	check_appname(options.app)
 	openshift_app = check_app(app, options)
@@ -158,21 +152,21 @@ def deploy_app(args, app, env, options):
 	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['.openshift'])
 
 	if not os.path.exists(war_path):
-		error_message("ERROR - '%s' exploded war forlder could not be created" % war_path)
+		error_message("ERROR - '%s' exploded war folder could not be created" % war_path)
 
 	#add files
 	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, msg="Adding deployments folder to index", debug=options.debug, output=True)
-	if err != '':
+	if err != '' or ret != 0:
 		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
 		error_message(err)
 
 	out, err, ret = shellexecute( ['git', 'commit', '-m', '"deployed at ' + date + '"'], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
-	if err != '':
+	if err != '' or ret != 0:
 		err.insert(0, "ERROR - error committing deployments")
 		error_message(err)
 
 	out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing to origin", debug=options.debug, output=True)
-	if err != '':
+	if err != '' or ret != 0:
 		err.insert(0, "ERROR - error pushing changes")
 		error_message(err)
 
@@ -246,10 +240,9 @@ def openshift_destroy(app, options):
 			destroy_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
 	out, err, ret = shellexecute( destroy_cmd, output=True, debug=options.debug, msg="Running rhc-ctl-app --command=destroy --app=%s" % options.app)
-	if err != '':
+	if err != '' and ret != 0:
 		err.insert(0, "Failed to execute rhc-ctl-app, check that rhc-ctl-app is installed.")
 		error_message(err)
-
 
 def openshift_check(app, options):
 	check_java(options)
@@ -419,7 +412,7 @@ def create_app(app, options):
 				create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
 		out, err, ret = shellexecute( create_cmd, location=openshift_folder, output=True, debug=options.debug, msg="Creating %s application at openshift" % options.app)
-		if err != '':
+		if err != '' and ret != 0:
 			err.insert(0, "Failed to execute rhc-create-app, check that rhc-create-app is installed.")
 			error_message(err)
 
@@ -467,13 +460,13 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 
 	#init repo
 	out, err, ret = shellexecute( ['git', 'init'], location=app_folder, msg="Creating git repo")
-	if err != '':
+	if err != '' and ret != 0:
 		err.insert(0, "ERROR - error creating git repository at '%s'" % app_folder)
 		error_message(err)
 	
 	#add remote
 	out, err, ret = shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, msg="Adding %s as remote origin" % openshift_app.repo, debug=options.debug)
-	if err != '':
+	if err != '' and ret != 0:
 		err.insert(0, "ERROR - error adding %s as a remote repo to '%s'" % (openshift_app.repo, app_folder))
 		error_message(err)
 
@@ -486,7 +479,7 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 
 	#merge remote
 	out, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, msg="Merging from origin/master", debug=options.debug)
-	if err != '':
+	if err != '' and ret != 0:
 		err.insert(0, "ERROR - error merging from from origin/master (%s)" % (openshift_app.repo))
 		error_message(err)
 
@@ -500,17 +493,17 @@ def local_repo_remove_default_app(app_folder, options):
 	if os.path.exists(os.path.join(app_folder, 'src')) or os.path.exists(os.path.join(app_folder, 'pom.xml')):
 		#remove default app
 		out, err, ret = shellexecute( ['rm', '-fr', 'src', 'pom.xml'], location=app_folder, msg="Removing default app", debug=options.debug)
-		if err != '':
+		if err != '' and ret != 0:
 			err.insert(0, "ERROR - error removing default application")
 			error_message(err)
 
 		out, err, ret = shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug)
-		if err != '':
+		if err != '' and ret != 0:
 			err.insert(0, "ERROR - error adding changes to be committed")
 			error_message(err)
 
 		out, err, ret = shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=app_folder, debug=options.debug)
-		if err != '':
+		if err != '' and ret != 0:
 			err.insert(0, "ERROR - error commiting changes")
 			error_message(err)
 
@@ -530,9 +523,8 @@ def openshift_info(options):
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 			info_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err, ret = shellexecute(info_cmd, True)
-
-	if err != '':
+	out, err, ret = shellexecute(info_cmd, output=True)
+	if err != '' and ret != 0:
 		err.insert(0, "Failed to execute rhc-domain-info, check that rhc-domain-info is installed.")
 		error_message(err)
 	
@@ -554,7 +546,7 @@ def appsinfo(options):
 
 	out, err, ret = shellexecute(info_cmd, msg="Contacting openshift...", debug=options.debug)
 
-	if err != '':
+	if err != '' and ret != 0:
 		err.insert(0, "Failed to execute rhc-domain-info, check that rhc-domain-info is installed.")
 		error_message(err)
 	
