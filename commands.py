@@ -58,9 +58,7 @@ def execute(**kargs):
 	if options.rhlogin == '': error_message("You must provide rhlogin parameter using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
 
 	if options.password == '': options.password = app.readConf('openshift.password')
-	if options.password == '': message([\
-		"Password not specified. You'll be asked to enter your password", \
-		"You can provide it using the -p PASSWORD command line or setting openshift.password in application.conf file."])
+	if options.password == '': error_message("You must your openshift password parameter using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
 
 	if options.debug == '': options.debug = app.readConf('openshift.debug')
 	if options.debug == '': options.debug = False
@@ -463,7 +461,7 @@ def local_repo_remove_default_app(app_folder, options):
 		#	error_message(err)
 
 def openshift_info(options):
-	info_cmd = ["rhc-user-info", "--apps"]
+	info_cmd = ["rhc-domain-info", "--apps"]
 
 	if options.debug == True: info_cmd.append("-d")
 	del options.debug
@@ -475,7 +473,7 @@ def openshift_info(options):
 	out, err, ret = shellexecute(info_cmd, True)
 
 	if err != '':
-		err.insert(0, "Failed to execute rhc-user-info, check that rhc-user-info is installed.")
+		err.insert(0, "Failed to execute rhc-domain-info, check that rhc-domain-info is installed.")
 		error_message(err)
 	
 def openshift_app(options):
@@ -490,14 +488,14 @@ def openshift_app(options):
 
 def appsinfo(options):
 
-	info_cmd = ["rhc-user-info", "--apps", "--rhlogin=%s" % options.rhlogin]
+	info_cmd = ["rhc-domain-info", "--apps", "--rhlogin=%s" % options.rhlogin]
 
 	if options.password != '': info_cmd.append("--password=%s" % options.password)
 
 	out, err, ret = shellexecute(info_cmd, msg="Contacting openshift...", debug=options.debug)
 
 	if err != '':
-		err.insert(0, "Failed to execute rhc-user-info, check that rhc-user-info is installed.")
+		err.insert(0, "Failed to execute rhc-domain-info, check that rhc-domain-info is installed.")
 		error_message(err)
 	
 	return parseuserinfo(out)
