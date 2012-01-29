@@ -23,18 +23,16 @@ MODULE = 'openshift'
 
 # Commands that are specific to your module
 COMMANDS = [
-	"rhc:test", "rhc:hello", "rhc:chk", "rhc:info", "rhc:app", "rhc:create", "rhc:open", "rhc:deploy", "rhc:destroy", "logs"
+	"rhc:test", "rhc:hello", "rhc:chk", "rhc:info", "rhc:open", "rhc:deploy", "rhc:destroy", "logs"
 ]
 
 HELP = {
 	'rhc:chk': 			'Check openshift prerequisites, application and git repo.',
 	'rhc:info': 		'Displays information about user and configured applications.',
-	'rhc:app': 			'Displays basic information about current application.',
-	'rhc:create': 	'Creates application on openshift.',
 	'rhc:open': 		'Opens the application deployed on openshift in web browser.',
 	'rhc:deploy': 	'Deploys application on openshift.',
 	'rhc:destroy': 	'Destroys application on openshift.',
-	'rhc:destroy': 	'Show the logs of the application on openshift.'
+	'rhc:logs': 		'Show the logs of the application on openshift.'
 }
 
 class OpenshiftOptionParser(OptionParser):
@@ -67,10 +65,10 @@ def execute(**kargs):
 	if options.subdomain == '': options.subdomain = app.readConf('openshift.application.subdomain')
 
 	if options.rhlogin == '': options.rhlogin = app.readConf('openshift.rhlogin')
-	if options.rhlogin == '': error_message("You must provide rhlogin parameter using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
+	if options.rhlogin == '': error_message("You must provide your red hat's login using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
 
 	if options.password == '': options.password = app.readConf('openshift.password')
-	if options.password == '': error_message("You must your openshift password parameter using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
+	if options.password == '': error_message("You must provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
 
 	if options.debug == '': options.debug = app.readConf('openshift.debug')
 	if options.debug == '': options.debug = False
@@ -87,7 +85,6 @@ def execute(**kargs):
 	if command == "chk": 		  openshift_check(app, options)
 	if command == "info": 		openshift_info(options)
 	if command == "app": 		  openshift_app(options)
-	if command == "create": 	create_app(app, options)
 	if command == "open": 		open_app(options)
 	if command == "logs": 		openshift_logs(options)
 	if command == "deploy": 	deploy_app(args, app, env, options)

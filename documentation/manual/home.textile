@@ -1,32 +1,114 @@
-h1. {module name}
+h1. Openshift module
 
-modified
+Openshift is Red Hat's free, auto-scaling, cloud-based platform-as-a-service for Java, Perl, PHP, Python, and Ruby applications.
 
-p(note). Write your module documentation in this file, possibly linking to other Textile files, and delete these notes when you are finished.
 
-p(note). Start with a clear statement of what the module is and what it is for. Link to any third-party libraries that the module is based on.
+With this module, you'll be able to easily deploy and manage your play application on Red Hat's cloud platform, with just a couple of simple commands from the command line.
 
-p(note). Briefly describe why you might want to use this module in a Play application.
+The module does not depend on any external Java libray. You'll just need an openshift account, git and openshift command line tools installed on your workstation.
+
+Source code is available at <a href="https://github.com/opensas/openshift">https://github.com/opensas/openshift</a>
+Written by Sebastián Scarano (<a href="http://www.twitter.com/develsas">@develsas</a>)
 
 h2. Sample application
 
 p(note). Your module should contain a sample app in the @sample@ directory that demonstrates the module. Describe how to run the demo here.
 
-h2. Getting started
+h2. <a name="getting_started">Prerequisites</a>
 
-p(note). Describe any installation that is required, beyond adding and resolving the module dependency.
+Before being able to deploy your play application to openshift, you have to:
+
+* <a href="http://www.playframework.org/documentation/latest/install">install play</a>
+
+* <a href="https://openshift.redhat.com/app/user/new/express">sign up for openshift</a>
+
+* <a href="http://docs.redhat.com/docs/en-US/OpenShift_Express/2.0/html/User_Guide/sect-User_Guide-Working_With_Domains.html#sect-User_Guide-Working_With_Domains-Creating_a_Domain">create a domain</a>
+
+* <a href="https://www.redhat.com/openshift/community/kb/kb-e1000/installing-openshift-express-client-tools-on-non-rpm-based-systems">install openshift's command line tools</a>.
+
+h2. <a name="getting_started">Getting started</a>
+
+To install Openshift module add it as a dependency in your dependencies.yml file:
+
+bc. require:
+      -play -> openshift {version}
+
+Then execute:
+
+bc. play deps
+
+p(note). Openshift hasn't been added to playframework's module repository so far. In the meantime, you can start using it right away with a dependencies.yml file like the following:
+
+bc.# Application dependencies
+
+require:
+    - play
+    - openshift -> openshift
+
+repositories:
+    - My local modules:
+        type:       local
+        artifact:   ${application.path}/../[module]
+        contains:
+            - openshift
+
+After that, deploying you play application to openshift is as easy as:
+
+bc. play rhc:deploy -l <your_openshift_email_acount> -p <your_openshift_password>
+
+And the module will create your app at openshift if it it's not already there, compile and package your app as a war folder, commit it in yout local git reposityr and then push it to openshift. Moreover, you can add the '-o' parameter to have the module automatically open you newly deployed app in a web browser.
 
 h2. Configuration
+
+Openshift module allows you to define the following command line parameters directly on the application.conf file, so that you may avoid specifying them. You can always override them from the command line.
+
+h3. Your Red Hat login account
+
+Red Hat login (RHN or OpenShift login with OpenShift Express access) account is a mandatory parameter. It's the email address you used to register at openshift. You can specify it using the '-l' or '--rhlogin' command line parameter or adding an 'openshift.rhlogin' option in you application.conf file. If none of these are specified, openshift command line tools will use you git configured email account. For more info check [Set your user name, email and GitHub token]:"http://help.github.com/set-your-user-name-email-and-github-token/".
+
+h3. Your Red Hat login password
+
+Red Hat login password is a mandatory parameter. You can specify it using the '-p' or '--password' command line parameter or adding an 'openshift.rhlogin' option in you application.conf file. 
+
+h3. Application name
+
+The application name is a mandatory parameter. You can specify it using the '-a' or '--app' command line parameter or adding an 'openshift.application.name' option in you application.conf file. If none of these are specified, openshift module will read the application's file from the 'application.name' entry in your application.conf file.
+
+h3. Application subdomain
+
+By default your play application will be deployed to openshift according to the following scheme:
+
+```
+http://<application name>-<domain-name>.rhcloud.com
+```
+
+You can have it deployed on a subdomain specifing it with the '-s' or '--subdomain' command line parameter or adding an 'openshift.application.subdomain' option in you application.conf file. In that case you'll be able to reach you application at:
+
+```
+http://<application name>-<domain-name>.rhcloud.com/<application subdomain>
+```
+
+h3. Timeout
+
+You can optionally specify a timeout, in seconds, for connection, using the '--timeout' command line parameter or adding an 'openshift.timeout' option in you application.conf file.
+
+h3. Debug
+
+You can tell Openshift module to print extra debug info, to help you troubleshoot and analyze any problem you encounter.
+
+You can optionally specify a timeout, in seconds, for connection, using the '--timeout' command line parameter or adding an 'openshift.timeout' option in you application.conf file.
+
+
+
+Timeout, in seconds, for connection
+
+
 
 p(note). List any configuration options that the module uses, with an @h3.@ heading for each one.
 
 h2. Usage
 
 p(note). Explain how to use the module, and describe any routes, controllers, models or views that the module provides.
-
-h2. Tags
-
-p(note). List any tags the module provides, with an @h3.@ heading for each one. Include the tags’ arguments.
 
 h2. Commands
 
