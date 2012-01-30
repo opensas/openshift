@@ -30,9 +30,9 @@ HELP = {
 	'rhc:chk': 			'Check openshift prerequisites, application and git repo.',
 	'rhc:deploy': 	'Deploys application on openshift.',
 	'rhc:destroy': 	'Destroys application on openshift.',
-	'rhc:logs': 		'Show the logs of the application on openshift.'
+	'rhc:logs': 		'Show the logs of the application on openshift.',
 	'rhc:info': 		'Displays information about user and configured applications.',
-	'rhc:open': 		'Opens the application deployed on openshift in web browser.',
+	'rhc:open': 		'Opens the application deployed on openshift in web browser.'
 }
 
 class OpenshiftOptionParser(OptionParser):
@@ -53,6 +53,7 @@ def execute(**kargs):
 	parser.add_option("-l", "--rhlogin",    default='',     dest="rhlogin",     help="Red Hat login (RHN or OpenShift login with OpenShift Express access)")
 	parser.add_option("-p", "--password",   default='',     dest="password",    help="RHLogin password  (optional, will prompt)")
 	parser.add_option("-d", "--debug",      default=False,  dest="debug",       action="store_true", help="Print Debug info")
+	parser.add_option("-m", "--message",    default='',  		dest="message",     help="Commit message")
 	parser.add_option("",   "--timeout",    default='',     dest="timeout",     help="Timeout, in seconds, for connection")
 	parser.add_option("-o", "--open",      	default=False,  dest="open",     		action="store_true", help="Open site after deploying")
 	parser.add_option("-b", "--bypass",     default=False,  dest="bypass",     	action="store_true", help="Bypass warnings")
@@ -76,6 +77,8 @@ def execute(**kargs):
 	if options.timeout == '': del options.timeout
 
 	app.check()
+
+	#print options
 
 	if command == "hello": 		print "~ Hello from openshift module"
 	if command == "test": 		openshift_test(app, env, options)
@@ -154,7 +157,11 @@ def deploy_app(args, app, env, options):
 		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
 		error_message(err)
 
-	out, err, ret = shellexecute( ['git', 'commit', '-m', '"deployed at ' + date + '"'], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
+	message = options.message
+	if message == '':	message = 'deployed at ' + date
+	message = '"' + message + '"'		
+
+	out, err, ret = shellexecute( ['git', 'commit', '-m', message], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
 	if err != '' or ret != 0:
 		err.insert(0, "ERROR - error committing deployment")
 		error_message(err)
