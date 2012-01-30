@@ -554,7 +554,8 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None, err
 	#development
 	#debug = True
 
-	out, err, ret = '', '', -1
+	std_out, std_err, ret = '', '', -1
+	err = ''
 
 	if msg != None: message(msg)
 
@@ -571,29 +572,27 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None, err
 			ret = subprocess.call(params)
 		else:
 			proc = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-			(out, err) = proc.communicate()
+			(std_out, std_err) = proc.communicate()
 			ret = proc.returncode
 
-			if err != '': err = [err];			
-
-		if ret != 0:
-			if err == '': err = []
-			if not raw_error:
-				err.append("process returned code %s" % ret)
-
 	except Exception as e:
-		err = [ str(e), str(sys.exc_info()[0]) ]
+		std_err = "Error %s (%s)" % ( str(e), str(sys.exc_info()[0]) )
 
-	if err != '' and not raw_error: 
-		err.insert(0, "error executing: " + " ".join(params))
+	out = std_out
+	if std_err != '': err = [std_err]
+
+	if (std_err != '' or ret != 0) and not raw_error: 
+		err.insert(0, "error executing: %s (return code %s)" % (" ".join(params), ret ) )
 
 	if location != None: os.chdir(save_dir)
 
 	if debug:
-		print out
-		print err
+		print "out: %s" % out
+		print "err: %s" % err
+		print "ret: %s" % ret
 
-	if exit_on_error and (err != '' or ret != 0):
+	if exit_on_error and (std_err != '' or ret != 0):
+		if out != '': err.insert(0, out)
 		if err_msg != None: 
 			err.insert(0, err_msg)
 		else:
@@ -612,6 +611,9 @@ def format_time(seconds):
 	return "%d:%02d:%02d.%03d" % \
 		reduce(lambda ll,b : divmod(ll[0],b) + ll[1:],
     [(seconds*1000,),1000,60,60])
+
+def is_array(var):
+	return isinstance(var, (list, tuple))
 
 def parseuserinfo(data):
 	apps, app = {}, None
