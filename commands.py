@@ -111,6 +111,8 @@ def openshift_test(app, env, options):
 	print "testing 1,2,3"
 
 def deploy_app(args, app, env, options):
+	start = time.time()
+
 	check_appname(options.app)
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
@@ -165,12 +167,17 @@ def deploy_app(args, app, env, options):
 	out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, 
 		msg="Pushing changes to origin", debug=options.debug, output=True, exit_on_error=True)
 
+	message([ "", "app successfully deployed in %s" % elapsed(start) ])
+
 	if options.open == True: 
-		message(["waiting 10 seconds before opening application, if it's not ready, just give openshift some time and press F5","if it's still not working try with 'play rhc:logs' to see what's going on"])
+		message([
+			"waiting 10 seconds before opening application, if it's not ready, just give openshift some time and press F5",
+			"if it's still not working try with 'play rhc:logs' to see what's going on"
+		])
 		time.sleep(10)
 		open_app(options, openshift_app)
 	else:
-		message(["app successfully deployed", "issue play rhc:open to see it in action"])
+		message("issue play rhc:open to see your application running on openshift")
 
 def open_app(options, openshift_app=None):
 	if openshift_app == None: openshift_app = appinfo(options)
@@ -198,6 +205,8 @@ def openshift_logs(options):
 		error_message(err)
 
 def openshift_destroy(app, options):
+	start = time.time()
+
 	destroy_cmd = ["rhc-ctl-app"]
 
 	if not options.bypass:
@@ -237,6 +246,8 @@ def openshift_destroy(app, options):
 
 	out, err, ret = shellexecute( destroy_cmd, output=True, debug=options.debug, 
 		msg="Destroy application %s" % options.app, exit_on_error=True)
+
+	message([ "", "app successfully removed from openshift in %s" % elapsed(start) ])
 
 def openshift_check(app, options):
 	check_java(options)
@@ -593,6 +604,14 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None, err
 
 def lowerFirst(text):
 	return text[:1].lower() + text[1:]
+
+def elapsed(start):
+	return format_time(time.time() - start)
+
+def format_time(seconds):
+	return "%d:%02d:%02d.%03d" % \
+		reduce(lambda ll,b : divmod(ll[0],b) + ll[1:],
+    [(seconds*1000,),1000,60,60])
 
 def parseuserinfo(data):
 	apps, app = {}, None
