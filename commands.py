@@ -23,16 +23,16 @@ MODULE = 'openshift'
 
 # Commands that are specific to your module
 COMMANDS = [
-	"rhc:test", "rhc:hello", "rhc:chk", "rhc:info", "rhc:open", "rhc:deploy", "rhc:destroy", "logs"
+	"rhc:test", "rhc:hello", "rhc:chk", "rhc:deploy", "rhc:destroy", "rhc:logs", "rhc:info", "rhc:open"
 ]
 
 HELP = {
 	'rhc:chk': 			'Check openshift prerequisites, application and git repo.',
-	'rhc:info': 		'Displays information about user and configured applications.',
-	'rhc:open': 		'Opens the application deployed on openshift in web browser.',
 	'rhc:deploy': 	'Deploys application on openshift.',
 	'rhc:destroy': 	'Destroys application on openshift.',
 	'rhc:logs': 		'Show the logs of the application on openshift.'
+	'rhc:info': 		'Displays information about user and configured applications.',
+	'rhc:open': 		'Opens the application deployed on openshift in web browser.',
 }
 
 class OpenshiftOptionParser(OptionParser):
@@ -70,25 +70,22 @@ def execute(**kargs):
 	if options.password == '': options.password = app.readConf('openshift.password')
 	if options.password == '': error_message("You must provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
 
-	if options.debug == '': options.debug = app.readConf('openshift.debug')
-	if options.debug == '': options.debug = False
+	if options.debug == False: options.debug = ( app.readConf('openshift.debug') in [True, '1', 'y', 'on', 'yes', 'enabled'] )
 
 	if options.timeout == '': options.timeout = app.readConf('openshift.timeout')
 	if options.timeout == '': del options.timeout
 
 	app.check()
 
-	#print options
-
-	if command == "test": 		openshift_test(app, env, options)
 	if command == "hello": 		print "~ Hello from openshift module"
+	if command == "test": 		openshift_test(app, env, options)
+
 	if command == "chk": 		  openshift_check(app, options)
-	if command == "info": 		openshift_info(options)
-	if command == "app": 		  openshift_app(options)
-	if command == "open": 		open_app(options)
-	if command == "logs": 		openshift_logs(options)
 	if command == "deploy": 	deploy_app(args, app, env, options)
 	if command == "destroy": 	openshift_destroy(app, options)
+	if command == "logs": 		openshift_logs(options)
+	if command == "info": 		openshift_info(options)
+	if command == "open": 		open_app(options)
 
 # This will be executed before any command (new, run...)
 def before(**kargs):
@@ -159,20 +156,20 @@ def deploy_app(args, app, env, options):
 
 	out, err, ret = shellexecute( ['git', 'commit', '-m', '"deployed at ' + date + '"'], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
 	if err != '' or ret != 0:
-		err.insert(0, "ERROR - error committing deployments")
+		err.insert(0, "ERROR - error committing deployment")
 		error_message(err)
 
-	out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing to origin", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, msg="Pushing changes to origin", debug=options.debug, output=True)
 	if err != '' or ret != 0:
 		err.insert(0, "ERROR - error pushing changes")
 		error_message(err)
-
-	message(["app successfully deployed", "issue play rhc:open to see it in action"])
 
 	if options.open == True: 
 		message(["waiting 10 seconds before opening application, if it's not ready, just give openshift some time and press F5","if it's still not working try with 'play rhc:logs' to see what's going on"])
 		time.sleep(10)
 		open_app(options, openshift_app)
+	else:
+		message(["app successfully deployed", "issue play rhc:open to see it in action"])
 
 def open_app(options, openshift_app=None):
 	if openshift_app == None: openshift_app = appinfo(options)
@@ -285,42 +282,48 @@ def parse_java_version(lines):
 
 def check_git(options):
 	out, err, ret = shellexecute(["git", "version"], debug=options.debug)
-	if err != '':
+	if err != '' or ret != 0:
 		err.insert(0, "ERROR - Failed to execute git, check that git is installed.")
 		error_message(err)
 	message("OK! - checked git version: %s" % out)
 
 def check_ruby(options):
 	out, err, ret = shellexecute(["ruby", "-v"], debug=options.debug)
-	if err != '':
+	if err != '' or ret != 0:
 		err.insert(0, "ERROR - Failed to execute ruby, check that ruby is installed.")
 		error_message(err)
 	message("OK! - checked ruby version: %s" % out)
 
 def check_rhc(options):
 	out, err, ret = shellexecute(["gem", "list", "rhc"], debug=options.debug)
-	if err != '':
+	if err != '' or ret != 0:
 		err.insert(0, "ERROR - Failed to execute gem list rhc, check that gem is installed.")
 		error_message(err)
 	message("OK! - checked rhc version: %s" % out)
 
 def check_rhc_chk(options):
-	create_cmd = ["rhc-chk"]
+	check_cmd = ["rhc-chk"]
 
 	if options.debug == True: create_cmd.append("-d")
 
 	for item in ["rhlogin", "password", "timeout"]:
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
-			create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
+			check_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err, ret = shellexecute( create_cmd, output=True, debug=options.debug, msg="Running rhc-chk")
-	if err != '':
+	out, err, ret = shellexecute(check_cmd, output=True, debug=options.debug, msg="Running rhc-chk")
+	if err != '' or ret != 0:
 		err.insert(0, "Failed to execute rhc-chk, check that rhc-chk is installed.")
 		error_message(err)
 
 def check_appname(appname):
 	if re.match("^[a-zA-Z0-9]+$", appname) == None:
-		error_message("ERROR - Invalid application name: '%s'. It should only contain alphanumeric characters" % appname)
+		error_message( [
+			"ERROR - Invalid application name: '%s'. It should only contain alphanumeric characters" % appname, 
+			"You can change application's name from the 'application.name' setting " +
+			"or specify a custom name for openshift application adding an 'openshift.application.name' setting " +
+			"in your application.conf file."
+		]
+)
 	message("OK! - checked application name: %s - OK!" % appname)
 
 def check_app(app, options):
@@ -356,11 +359,11 @@ def check_local_repo(app, openshift_app, options):
 		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - '%s' folder does not exists, '%s' does not seem to be a valid git repository" % (git_folder, app_folder) )
 
 	out, err, ret = shellexecute( ['git', 'status'], location=app_folder, debug=options.debug)
-	if err != '':
+	if err != '' or ret != 0:
 		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - folder '%s' exists but does not seem to be a valid git repo" % git_folder )
 
 	out, err, ret = shellexecute( ['git', 'remote', '-v'], location=app_folder, debug=options.debug)
-	if err != '':
+	if err != '' or ret != 0:
 		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - error fetching folder remotes for '%s' git repository" )
 
 	remote_found = False
@@ -542,7 +545,6 @@ def appsinfo(options):
 	if options.password != '': info_cmd.append("--password=%s" % options.password)
 
 	out, err, ret = shellexecute(info_cmd, msg="Contacting openshift...", debug=options.debug)
-
 	if err != '' and ret != 0:
 		err.insert(0, "Failed to execute rhc-domain-info, check that rhc-domain-info is installed.")
 		error_message(err)
