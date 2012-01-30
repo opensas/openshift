@@ -157,11 +157,11 @@ def deploy_app(args, app, env, options):
 		err.insert(0, "ERROR - error adding deployments folder to index (%s)" % (deploy_folder))
 		error_message(err)
 
-	message = options.message
-	if message == '':	message = 'deployed at ' + date
-	message = '"' + message + '"'		
+	commit_message = options.message
+	if commit_message == '':	commit_message = 'deployed at ' + date
+	commit_message = '"' + commit_message + '"'		
 
-	out, err, ret = shellexecute( ['git', 'commit', '-m', message], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
+	out, err, ret = shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, msg="Commiting deployment", debug=options.debug, output=True)
 	if err != '' or ret != 0:
 		err.insert(0, "ERROR - error committing deployment")
 		error_message(err)
