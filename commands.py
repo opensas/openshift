@@ -154,6 +154,9 @@ def openshift_deploy(args, app, env, options):
 
 	message([ "", "war successfully generated to %s in %s" % ( war_path, elapsed(start) ) ])
 
+	precompiled_folder = os.path.join(app_folder, 'precompiled')
+	remove_folder(precompiled_folder)
+
 	#add files
 	shellexecute( ['git', 'add', 'deployments'], location=app_folder, debug=options.debug, exit_on_error=True,
 		msg="Adding deployments folder index (%s)" % deploy_folder, output=True )
@@ -504,7 +507,7 @@ def merge_repos(app, openshift_app, options):
 	if not use_local and not use_remote:
 
 		#merge remote
-		our, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app.path, debug=options.debug, 
+		out, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app.path, debug=options.debug, 
 			msg="Merging from origin/master (%s)" % openshift_app.repo, exit_on_error=False )
 
 		#Conflicts detected
@@ -521,9 +524,13 @@ def merge_repos(app, openshift_app, options):
 				"    After manually solving your issues youl'll have to redeploy your app.",
 				"(C) Cancel merge." 
 			] )
-			answer = raw_input("~ Choose your options? [L] %s %s %s %s " % ("[L]ocal", "[R]emote", "[M]anual", "[C]ancel")  )
+			answer = raw_input("~ Choose your option %s %s %s %s or press enter for Local: " % ("[L]ocal", "[R]emote", "[M]anual", "[C]ancel")  )
 
 			answer = answer.strip().lower()
+
+			if answer == '': answer = 'l'
+
+			print "answer: %s" % answer
 			
 			if answer in ['m', 'manual']: 
 				error_message( [ 
@@ -543,7 +550,8 @@ def merge_repos(app, openshift_app, options):
 			if answer in ['r', 'remote']: use_remote = True
 
 			#invalid answer
-			error_message( "Invalid answer, canceled merge with remote repo at openshift." )
+			if answer not in ['c', 'cancel', 'l', 'local', 'r', 'remote', 'm', 'manual']:
+				error_message( "Invalid answer, canceled merge with remote repo at openshift." )
 
 		if ret != 0 or err != '': error_message(err)
 
