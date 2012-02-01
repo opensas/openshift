@@ -107,7 +107,7 @@ def after(**kargs):
 
 def openshift_test(app, env, options):
 	print "testing 1,2,3"
-	print "realpath(__file__): %s" % realpath(__file__)
+	check_app(app, options)
 
 def openshift_deploy(args, app, env, options):
 	start = time.time()
@@ -380,6 +380,9 @@ def create_app(app, options):
 
 	#create openshift application
 	if openshift_app == None:
+
+		start = time.time()
+
 		message("creating a new openshift '%s' application at '%s'" % (options.app, openshift_folder))
 
 		create_cmd = ["rhc-create-app", "--type", 'jbossas-7.0']
@@ -399,7 +402,7 @@ def create_app(app, options):
 		app_folder = os.path.join(openshift_folder, options.app)
 		local_repo_remove_default_app(app_folder, options)
 
-		message("Repository at %s successfully created" % app_folder)
+		message( "Application %s successfully created at %s in %s" % (options.app, app_folder, elapsed(start)) )
 
 	return openshift_app
 
@@ -443,12 +446,21 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 	message("Repository at %s successfully created" % app_folder)
 
 def local_repo_remove_default_app(app_folder, options):
+	
+	commit_changes = False
 
 	#remove useless openshift app
-	if os.path.exists(os.path.join(app_folder, 'src')) or os.path.exists(os.path.join(app_folder, 'pom.xml')):
-		#remove default app
-		shellexecute( ['rm', '-fr', 'src', 'pom.xml'], location=app_folder, 
-			msg="Removing default application", debug=options.debug, exit_on_error=True )
+	src_folder = os.path.join(app_folder, 'src')
+	if os.path.exists(src_folder): 
+		commit_changes = True
+		remove_folder(src_folder, silent=True)
+
+	pom_file = os.path.join(app_folder, 'pom.xml')
+	if os.path.exists(pom_file):
+		commit_changes = True
+		remove_file(pom_file, silent=True)
+
+	if commit_changes:
 
 		shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug, 
 			msg="Adding changes to be committed", exit_on_error=True )

@@ -55,6 +55,8 @@ def execute(**kargs):
 	parser.add_option("",   "--timeout",    default='',     dest="timeout",     help="Timeout, in seconds, for connection")
 	parser.add_option("-o", "--open",      	default=False,  dest="open",     		action="store_true", help="Open site after deploying")
 	parser.add_option("-b", "--bypass",     default=False,  dest="bypass",     	action="store_true", help="Bypass warnings")
+	parser.add_option("", "--use-remote",   default=False,  dest="use_remote",  action="store_true", help="Resolve conflicts using remote repository (openshift wins)")
+	parser.add_option("", "--use-local",   	default=False,  dest="use_local",  	action="store_true", help="Resolve conflicts using local repository (you win)")
 
 	options, args = parser.parse_args(args)
 
@@ -113,10 +115,15 @@ def openshift_deploy(args, app, env, options):
 	start = time.time()
 
 	check_appname(options.app)
-	openshift_app = check_app(app, options)
-	check_local_repo(app, openshift_app, options)
 
-	app_folder = os.path.join(app.path, '.openshift', options.app)
+	openshift_app = check_app(app, options)				# check remote repo
+	check_local_repo(app, openshift_app, options) # check local repo
+
+	commit_local_repo(app, options)
+
+	merge_repos(app, openshift_app, options)			# merge local and remote repo
+
+	app_folder = app.path
 	deploy_folder = os.path.join(app_folder, 'deployments')
 
 	create_folder(deploy_folder)
@@ -140,7 +147,7 @@ def openshift_deploy(args, app, env, options):
 
 	start_war = time.time()
 
-	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['.openshift'])
+	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['deployments'])
 
 	if not os.path.exists(war_path):
 		error_message("ERROR - '%s' exploded war folder could not be created" % war_path)
@@ -152,7 +159,8 @@ def openshift_deploy(args, app, env, options):
 		msg="Adding deployments folder index (%s)" % deploy_folder, output=True )
 
 	commit_message = options.message
-	if commit_message == '':	commit_message = 'deployed at ' + date
+	commit_message = 'deployed at ' + date
+	if options.message != '': commit_message += " (%s)" % options.message
 	commit_message = '"' + commit_message + '"'		
 
 	shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, 
@@ -201,8 +209,6 @@ def openshift_logs(options):
 def openshift_destroy(app, options):
 	start = time.time()
 
-	destroy_cmd = ["rhc-ctl-app"]
-
 	if not options.bypass:
 		message( [
 			"!!!! WARNING !!!! WARNING !!!! WARNING !!!!", 
@@ -217,24 +223,37 @@ def openshift_destroy(app, options):
 		if answer not in ['yes', 'y']:
 			error_message("the application '%s' was not destroyed" % options.app)
 
-	#first, clean up .openshift folder
-	openshift_folder = os.path.join(app.path, '.openshift')
+	app_folder = app.path
 
-	remove_folder(openshift_folder)
+	openshift_app = appinfo(options)
 
-	if options.debug == True: create_cmd.append("--debug")
+	if openshift_app != None:
 
-	destroy_cmd.append('--command=destroy')
-	destroy_cmd.append('--bypass')
+		destroy_cmd = ["rhc-ctl-app"]
 
-	for item in ["app", "rhlogin", "password", "timeout"]:
-		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
-			destroy_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
+		if options.debug == True: destroy_cmd.append("--debug")
 
-	shellexecute( destroy_cmd, output=True, debug=options.debug, 
-		msg="Destroy application %s" % options.app, exit_on_error=True)
+		destroy_cmd.append('--command=destroy')
+		destroy_cmd.append('--bypass')
 
-	message([ "", "app successfully removed from openshift in %s" % elapsed(start) ])
+		for item in ["app", "rhlogin", "password", "timeout"]:
+			if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
+				destroy_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
+
+		shellexecute( destroy_cmd, output=True, debug=options.debug, 
+			msg="Destroy application %s" % options.app, exit_on_error=True)
+
+	else:
+		message( "application %s does not exist on openshit. skipping destroy." % options.app )
+
+	#delete local files
+	message("deleting .git, deployments, .openshift folders and .gitignore file at %s" % app_folder)
+	remove_folder(os.path.join(app_folder, '.git'))
+	remove_folder(os.path.join(app_folder, 'deployments'))
+	remove_folder(os.path.join(app_folder, '.openshift'))
+	remove_file(os.path.join(app_folder, '.gitignore'))
+
+	message([ "app successfully removed from openshift in %s" % elapsed(start) ])
 
 def openshift_check(app, options):
 	check_java(options)
@@ -313,6 +332,11 @@ def check_appname(appname):
 )
 	message("OK! - checked application name: %s - OK!" % appname)
 
+#
+# Verifies that application exists at openshift, and returns it's information
+#
+# If it doesn't exist, it asks the user to create it
+# 
 def check_app(app, options):
 	openshift_app = appinfo(options)
 
@@ -334,21 +358,16 @@ def check_app(app, options):
 	return openshift_app
 
 def check_local_repo(app, openshift_app, options):
-	openshift_folder = os.path.join(app.path, '.openshift')
-	if not os.path.exists(openshift_folder):
-		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - '%s' folder does not exists, openshift folder is not available" % openshift_folder)
 
-	app_folder = os.path.join(openshift_folder, options.app)
-	if not os.path.exists(app_folder):
-		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - %s folder does not exists, application folder is not available" % openshift_folder)
+	app_folder = app.path
 
 	git_folder = os.path.join(app_folder, '.git')
 	if not os.path.exists(git_folder):
-		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - '%s' folder does not exists, '%s' does not seem to be a valid git repository" % (git_folder, app_folder) )
+		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - '%s' does not seem to be a valid git repository, .git folder not found." % app_folder )
 
 	out, err, ret = shellexecute( ['git', 'status'], location=app_folder, debug=options.debug, exit_on_error=False)
 	if err != '' or ret != 0:
-		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - folder '%s' exists but does not seem to be a valid git repo" % git_folder )
+		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - folder '%s' exists but does not seem to be a valid git repo." % git_folder )
 
 	out, err, ret = shellexecute( ['git', 'remote', '-v'], location=app_folder, debug=options.debug, exit_on_error=False)
 	if err != '' or ret != 0:
@@ -368,109 +387,218 @@ def check_local_repo(app, openshift_app, options):
 		create_local_repo(app, openshift_app, options, 
 			confirmMessage="ERROR - could not found remote '%s' in '%s' git repo" % (openshift_app.repo, git_folder) )
 
+	#create .gitignore file
+	gitignore_dest = os.path.join(app_folder, '.gitignore')
+	if not os.path.exists(gitignore_dest):
+		gitignore_src = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'resources', 'gitignore')
+		shutil.copyfile(gitignore_src, gitignore_dest)
+
+		if not os.path.exists(gitignore_dest):
+			error_message("Could not create .gitignore file at %s" % gitignore_dest)
+
 	message("OK! - folder '%s' exists and seems to be a valid git repo" % git_folder)
 
 def create_app(app, options):
-
-	openshift_folder = os.path.join(app.path, '.openshift')
-
-	create_folder(openshift_folder)
 
 	openshift_app = appinfo(options)
 
 	#create openshift application
 	if openshift_app == None:
 
-		start = time.time()
+		tmp_folder = os.path.join(app.path, '.tmp')
 
-		message("creating a new openshift '%s' application at '%s'" % (options.app, openshift_folder))
+		try:
 
-		create_cmd = ["rhc-create-app", "--type", 'jbossas-7.0']
+			create_folder(tmp_folder)
 
-		if options.debug == True: create_cmd.append("-d")
+			start = time.time()
 
-		for item in ["app", "rhlogin", "password", "timeout"]:
-			if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
-				create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
+			message("creating a new openshift '%s' application at '%s'" % (options.app, tmp_folder))
 
-		shellexecute( create_cmd, location=openshift_folder, debug=options.debug, output=True,
-			msg="Creating %s application at openshift" % options.app, exit_on_error=True )
+			create_cmd = ["rhc-create-app", "--type", 'jbossas-7.0']
 
-		openshift_app = appinfo(options)
-		if openshift_app == None: error_message("Failed to create app, check that rhc-create-app is installed.")
+			if options.debug == True: create_cmd.append("-d")
 
-		app_folder = os.path.join(openshift_folder, options.app)
-		local_repo_remove_default_app(app_folder, options)
+			for item in ["app", "rhlogin", "password", "timeout"]:
+				if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
+					create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-		message( "Application %s successfully created at %s in %s" % (options.app, app_folder, elapsed(start)) )
+			shellexecute( create_cmd, location=tmp_folder, debug=options.debug, output=True,
+				msg="Creating %s application at openshift" % options.app, exit_on_error=True )
+
+			openshift_app = appinfo(options)
+			if openshift_app == None: error_message("Failed to create app, check that rhc-create-app is installed.")
+
+			app_folder = os.path.join(tmp_folder, options.app)
+			local_repo_remove_default_app(app_folder, options)
+
+			message( "Application %s successfully created at %s in %s" % (options.app, app_folder, elapsed(start)) )
+
+		finally:
+			remove_folder(tmp_folder, silent=True)
 
 	return openshift_app
 
 def create_local_repo(app, openshift_app, options, confirmMessage=''):
+
+	app_folder = app.path
 
 	if openshift_app == None:
 		error_message("Application not found at openshift.")
 
 	if confirmMessage != '':
 		message(confirmMessage)
-		answer = raw_input("~ Do you want to create local repo and fetch openshift application? [%s] " % "yes")
+		answer = raw_input("~ Do you want to create local repo and merge openshift application? [%s] " % "yes")
 
 		answer = answer.strip().lower()
 		if answer not in ['yes', 'y', '']:
 			error_message("the local repo is not correct")
 
-	openshift_folder = os.path.join(app.path, '.openshift')
-	create_folder(openshift_folder)
-
-	app_folder = os.path.join(openshift_folder, options.app)
-	create_folder(app_folder)
-
 	#init repo
-	out, err, ret = shellexecute( ['git', 'init'], location=app_folder, 
+	shellexecute( ['git', 'init'], location=app_folder, debug=options.debug,
 		msg="Creating git repo at '%s'" % app_folder, exit_on_error=True )
 	
 	#add remote
 	shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, debug=options.debug,
 		msg="Adding %s as a remote repo to '%s'" % (openshift_app.repo, app_folder), exit_on_error=True )
 
-	#fetch remote
-	shellexecute( ['git', 'fetch', 'origin'], location=app_folder, 
-		msg="fetching from origin (%s) repo" % openshift_app.repo, debug=options.debug, output=True, exit_on_error=True )
-
-	#merge remote
-	shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, 
-		msg="Merging from origin/master (%s)" % openshift_app.repo, debug=options.debug, exit_on_error=True )
-
+	#just in case the default openshift app is there
 	local_repo_remove_default_app(app_folder, options)
 
-	message("Repository at %s successfully created" % app_folder)
+	message("Local git repository at %s successfully created" % app.path)
 
-def local_repo_remove_default_app(app_folder, options):
+def commit_local_repo(app, options):
+
+	app_folder = app.path	
+
+	#add files
+	shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug, exit_on_error=True,
+		msg="Adding changes to index", output=True )
+
+	#add files
+	out, err, ret = shellexecute( ['git', 'status'], location=app_folder, debug=options.debug, exit_on_error=True,
+		msg="Checking for files to commit", output=False )
+
+	#nothing to do, already committed
+	if "nothing to commit" in out: return
+
+	date = str(datetime.now())
+	commit_message = options.message
+	if commit_message == '':	commit_message = 'commiting at ' + date
+	commit_message = '"' + commit_message + '"'		
+
+	shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, 
+		msg="Commiting changes", debug=options.debug, output=True, exit_on_error=True )
+
+def merge_repos(app, openshift_app, options):
+
+	#fetch remote
+	shellexecute( ['git', 'fetch', 'origin'], location=app.path, debug=options.debug,
+		msg="fetching from origin (%s) repo" % openshift_app.repo, output=True, exit_on_error=True )
+
+	conflict = False
+	use_local = options.use_local
+	use_remote = options.use_remote
+
+	# no strategy specified for solving conflicts
+	if not use_local and not use_remote:
+
+		#merge remote
+		our, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app.path, debug=options.debug, 
+			msg="Merging from origin/master (%s)" % openshift_app.repo, exit_on_error=False )
+
+		#Conflicts detected
+		if ret == 1 and "CONFLICT" in out:
+
+			concflict = True
+			message(out)
+			message( [ "",
+				"Attention!, conflicts detected when trying to merge changes from openshift repo.",
+				"You have the following options:",
+				"(L) Use your local version to solve conflicts, changes from remote repo will be overwritten (same as using --use-local).",
+				"(R) Use remote version to solve conflicts, changes from your local repo will be overwritten (same as using --use-remote).",
+				"(M) Manually solve conflicts: look the above files and manually edit them to solve conflicts.",
+				"    After manually solving your issues youl'll have to redeploy your app.",
+				"(C) Cancel merge." 
+			] )
+			answer = raw_input("~ Choose your options? [L] %s %s %s %s " % ("[L]ocal", "[R]emote", "[M]anual", "[C]ancel")  )
+
+			answer = answer.strip().lower()
+			
+			if answer in ['m', 'manual']: 
+				error_message( [ 
+					"You'll have to manually edit the files to solve the files in conflict.",
+					"After that run play rhc:deploy once again to deploy your changes.",
+				] )
+
+			#back to last commit
+			our, err, ret = shellexecute( ['git', 'reset', '--hard', 'HEAD'], location=app.path, debug=options.debug, 
+				msg="Reverting to last commit", exit_on_error=True )
+
+			if answer in ['c', 'cancel']:
+				error_message( "Merge from remote repo at openshift has been canceled." )
+
+			if answer in ['l', 'local', '']: use_local = True
+
+			if answer in ['r', 'remote']: use_remote = True
+
+			#invalid answer
+			error_message( "Invalid answer, canceled merge with remote repo at openshift." )
+
+		if ret != 0 or err != '': error_message(err)
+
+		if ret == 0 and err == '':
+			message( "Remote repository at openshift successfully merged with local repository." )
+			return
+
+	if conflict == True and (not use_local) and (not use_remote):
+		error_message( [
+			"Conflict has been detected and no strategy has been specified.",
+			"Use play rhc_deploy with the --use-local or --use-remote option."
+		] )
+
+	merge_command = ['git', 'merge', '-s', 'recursive', '-X']
+	
+	if use_local: merge_command.append("ours")
+	if use_remote: merge_command.append("theirs")
+
+	merge_command.append("origin/master")
+
+	#merge remote
+	our, err, ret = shellexecute( merge_command, location=app.path, debug=options.debug, 
+		msg="Merging from origin/master (%s)" % openshift_app.repo, exit_on_error=True )
+
+def local_repo_remove_default_app(repo_folder, options):
 	
 	commit_changes = False
 
 	#remove useless openshift app
-	src_folder = os.path.join(app_folder, 'src')
+	src_folder = os.path.join(repo_folder, 'src')
 	if os.path.exists(src_folder): 
 		commit_changes = True
 		remove_folder(src_folder, silent=True)
 
-	pom_file = os.path.join(app_folder, 'pom.xml')
+	pom_file = os.path.join(repo_folder, 'pom.xml')
 	if os.path.exists(pom_file):
 		commit_changes = True
 		remove_file(pom_file, silent=True)
 
+	gitignore_file = os.path.join(repo_folder, '.gitignore')
+	if os.path.exists(gitignore_file):
+		commit_changes = True
+		remove_file(gitignore_file, silent=True)
+
 	if commit_changes:
 
-		shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug, 
-			msg="Adding changes to be committed", exit_on_error=True )
+		shellexecute( ['git', 'add', '-A'], location=repo_folder, debug=options.debug, 
+			msg="Adding changes to be committed (removing default app)", exit_on_error=True )
 
-		shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=app_folder, debug=options.debug,
-			msg="Committing changes", exit_on_error=True )
+		shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=repo_folder, debug=options.debug,
+			msg="Committing changes (removing default app)", exit_on_error=True )
 
-		#no need to push right now, will do it later anyway...
-		#out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, 
-		#	msg="Pushing changes to origin...", debug=options.debug, exit_on_error=True)
+		#we'll push it right now, because we will delete the local repo
+		shellexecute( ['git', 'push', 'origin'], location=repo_folder, 
+			msg="Pushing changes to origin... (removing default app)", debug=options.debug, output=True, exit_on_error=True)
 
 def openshift_info(options):
 	info_cmd = ["rhc-domain-info", "--apps"]

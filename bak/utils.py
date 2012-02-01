@@ -95,6 +95,15 @@ def remove_folder(folder, silent=False):
 	if os.path.exists(folder):
 		error_message("ERROR - '%s' folder already exists and could not be deleted\nremove it and try again" % folder)
 
+def remove_file(file, silent=False):
+	#delete deploy_folder folder to start it all over again
+	if os.path.exists(file): 
+		if not silent: message( "removing %s file" % file)
+		os.remove(file)
+
+	if os.path.exists(file):
+		error_message("ERROR - '%s' file could not be deleted\nremove it and try again" % file)
+
 def create_folder(folder, silent=False):
 
 	remove_folder(folder, silent=True)
