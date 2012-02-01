@@ -1,23 +1,21 @@
 import sys
-import subprocess
 import re
 import os
-import imp
 import shutil
 import webbrowser
-import time
+
 from datetime import datetime
 from optparse import OptionParser
 
 import play.commands.precompile
 
-def import_module(module_name, file_path=""):
-	if file_path == "": file_path = module_name + ".py"
-	source = 	os.path.join(os.path.dirname(os.path.realpath(__file__)), file_path)
-	return imp.load_source(module_name, source)
+#add current dir to syspath to import local modules
+sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
-#custom imports
-patched_war = import_module('patched_war')
+#local imports
+from utils import *
+from appinfo import appinfo
+import patched_war
 
 MODULE = 'openshift'
 
@@ -84,11 +82,11 @@ def execute(**kargs):
 	if command == "test": 		openshift_test(app, env, options)
 
 	if command == "chk": 		  openshift_check(app, options)
-	if command == "deploy": 	deploy_app(args, app, env, options)
+	if command == "deploy": 	openshift_deploy(args, app, env, options)
 	if command == "destroy": 	openshift_destroy(app, options)
 	if command == "logs": 		openshift_logs(options)
 	if command == "info": 		openshift_info(options)
-	if command == "open": 		open_app(options)
+	if command == "open": 		openshift_open(options)
 
 # This will be executed before any command (new, run...)
 def before(**kargs):
@@ -109,8 +107,9 @@ def after(**kargs):
 
 def openshift_test(app, env, options):
 	print "testing 1,2,3"
+	print "realpath(__file__): %s" % realpath(__file__)
 
-def deploy_app(args, app, env, options):
+def openshift_deploy(args, app, env, options):
 	start = time.time()
 
 	check_appname(options.app)
@@ -120,16 +119,7 @@ def deploy_app(args, app, env, options):
 	app_folder = os.path.join(app.path, '.openshift', options.app)
 	deploy_folder = os.path.join(app_folder, 'deployments')
 
-	#delete deploy_folder folder to start it all over again
-	if os.path.exists(deploy_folder): shutil.rmtree(deploy_folder)
-
-	#could not delete deploy_folder folder
-	if os.path.exists(deploy_folder):
-		error_message("ERROR - '%s' folder already exists and could not be deleted\nremove it and try again" % deploy_folder)
-
-	os.mkdir(deploy_folder)
-	if not os.path.exists(deploy_folder):
-		error_message("ERROR - '%s' deployment folder could not be created" % deploy_folder)
+	create_folder(deploy_folder)
 
 	if options.subdomain == '':
 		war_file = 'ROOT.war'
@@ -148,23 +138,27 @@ def deploy_app(args, app, env, options):
 	# Precompile first
 	play.commands.precompile.execute(command='war', app=app, args=args, env=env)
 
+	start_war = time.time()
+
 	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['.openshift'])
 
 	if not os.path.exists(war_path):
 		error_message("ERROR - '%s' exploded war folder could not be created" % war_path)
 
+	message([ "", "war successfully generated to %s in %s" % ( war_path, elapsed(start) ) ])
+
 	#add files
-	out, err, ret = shellexecute( ['git', 'add', 'deployments'], location=app_folder, debug=options.debug, exit_on_error=True,
+	shellexecute( ['git', 'add', 'deployments'], location=app_folder, debug=options.debug, exit_on_error=True,
 		msg="Adding deployments folder index (%s)" % deploy_folder, output=True )
 
 	commit_message = options.message
 	if commit_message == '':	commit_message = 'deployed at ' + date
 	commit_message = '"' + commit_message + '"'		
 
-	out, err, ret = shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, 
+	shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, 
 		msg="Commiting deployment", debug=options.debug, output=True, exit_on_error=True )
 
-	out, err, ret = shellexecute( ['git', 'push', 'origin'], location=app_folder, 
+	shellexecute( ['git', 'push', 'origin'], location=app_folder, 
 		msg="Pushing changes to origin", debug=options.debug, output=True, exit_on_error=True)
 
 	message([ "", "app successfully deployed in %s" % elapsed(start) ])
@@ -175,11 +169,11 @@ def deploy_app(args, app, env, options):
 			"if it's still not working try with 'play rhc:logs' to see what's going on"
 		])
 		time.sleep(10)
-		open_app(options, openshift_app)
+		openshift_open(options, openshift_app)
 	else:
 		message("issue play rhc:open to see your application running on openshift")
 
-def open_app(options, openshift_app=None):
+def openshift_open(options, openshift_app=None):
 	if openshift_app == None: openshift_app = appinfo(options)
 	if openshift_app == None:
 		error_message("the application '%s' does not exist for login '%s' in openshift" % (options.app, options.rhlogin))
@@ -198,7 +192,7 @@ def openshift_logs(options):
 			create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
 	out, err, ret = shellexecute( create_cmd, output=True, debug=options.debug, 
-		msg="Running rhc-tail-files", exit_on_error=False)
+		msg="Running rhc-tail-files", exit_on_error=False )
 	#will always return error 255, because user has to stop process	
 	if err != '' and ret != 255:
 		err.insert(0, "Failed to execute rhc-tail-files, check that rhc-tail-files is installed.")
@@ -226,14 +220,7 @@ def openshift_destroy(app, options):
 	#first, clean up .openshift folder
 	openshift_folder = os.path.join(app.path, '.openshift')
 
-	#delete openshift_folder to leave everything clean
-	if os.path.exists(openshift_folder): 
-		message( "removing %s folder" % openshift_folder)
-		shutil.rmtree(openshift_folder)
-
-	#could not delete deploy_folder folder
-	if os.path.exists(openshift_folder):
-		error_message("ERROR - '%s' folder could not be deleted\nremove it and try again" % openshift_folder)
+	remove_folder(openshift_folder)
 
 	if options.debug == True: create_cmd.append("--debug")
 
@@ -244,7 +231,7 @@ def openshift_destroy(app, options):
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 			destroy_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err, ret = shellexecute( destroy_cmd, output=True, debug=options.debug, 
+	shellexecute( destroy_cmd, output=True, debug=options.debug, 
 		msg="Destroy application %s" % options.app, exit_on_error=True)
 
 	message([ "", "app successfully removed from openshift in %s" % elapsed(start) ])
@@ -282,27 +269,24 @@ def parse_java_version(lines):
 
 	for line in lines:
 		match = re.search("1\.[0-9]\.[0-9_]+", line)
-		if match != None:
-			break
+		if match != None: break
 
-	if match == None:
-		return ""
+	if match == None: return ""
 
 	return match.group(0)
 
-
 def check_git(options):
-	out, err, ret = shellexecute(["git", "version"], debug=options.debug,
+	shellexecute(["git", "version"], debug=options.debug,
 		err_msg="Failed to execute git, check that git is installed.", exit_on_error=True )
 	message("OK! - checked git version: %s" % out)
 
 def check_ruby(options):
-	out, err, ret = shellexecute(["ruby", "-v"], debug=options.debug,
+	shellexecute(["ruby", "-v"], debug=options.debug,
 		err_msg="Failed to execute ruby, check that ruby is installed.", exit_on_error=True )
 	message("OK! - checked ruby version: %s" % out)
 
 def check_rhc(options):
-	out, err, ret = shellexecute(["gem", "list", "rhc"], debug=options.debug,
+	shellexecute(["gem", "list", "rhc"], debug=options.debug,
 		err_msg="Failed to execute gem list rhc, check that gem is installed.", exit_on_error=True )
 	message("OK! - checked rhc version: %s" % out)
 
@@ -315,7 +299,7 @@ def check_rhc_chk(options):
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 			check_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err, ret = shellexecute(check_cmd, output=True, debug=options.debug, 
+	shellexecute(check_cmd, output=True, debug=options.debug, 
 		msg="Running rhc-chk", err_msg="Failed to execute rhc-chk, check that rhc-chk is installed.", exit_on_error=True)
 
 def check_appname(appname):
@@ -331,6 +315,7 @@ def check_appname(appname):
 
 def check_app(app, options):
 	openshift_app = appinfo(options)
+
 	if openshift_app == None:
 
 		if options.bypass == True:
@@ -388,18 +373,8 @@ def check_local_repo(app, openshift_app, options):
 def create_app(app, options):
 
 	openshift_folder = os.path.join(app.path, '.openshift')
-	app_folder = os.path.join(openshift_folder, options.app)
 
-	#delete openshift folder to start it all over again
-	if os.path.exists(openshift_folder): shutil.rmtree(openshift_folder)
-
-	#could not delete openshift folder
-	if os.path.exists(openshift_folder):
-		error_message("ERROR - '%s' folder already exists and could not be deleted\nremove it and try again" % openshift_folder)
-
-	if not os.path.exists(openshift_folder): os.mkdir(openshift_folder)
-	if not os.path.exists(openshift_folder):
-		error_message("ERROR - '%s' folder could not be created" % openshift_folder)
+	create_folder(openshift_folder)
 
 	openshift_app = appinfo(options)
 
@@ -415,12 +390,11 @@ def create_app(app, options):
 			if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 				create_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-		out, err, ret = shellexecute( create_cmd, location=openshift_folder, debug=options.debug, output=True,
-			msg="Creating %s application at openshift" % options.app, exit_on_error=True)
+		shellexecute( create_cmd, location=openshift_folder, debug=options.debug, output=True,
+			msg="Creating %s application at openshift" % options.app, exit_on_error=True )
 
 		openshift_app = appinfo(options)
-		if openshift_app == None:
-			error_message("Failed to create app, check that rhc-create-app is installed.")
+		if openshift_app == None: error_message("Failed to create app, check that rhc-create-app is installed.")
 
 		app_folder = os.path.join(openshift_folder, options.app)
 		local_repo_remove_default_app(app_folder, options)
@@ -443,38 +417,26 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 			error_message("the local repo is not correct")
 
 	openshift_folder = os.path.join(app.path, '.openshift')
-	
-	#delete openshift folder to start it all over again
-	if os.path.exists(openshift_folder): shutil.rmtree(openshift_folder)
-
-	#could not delete openshift folder
-	if os.path.exists(openshift_folder):
-		error_message("ERROR - '%s' folder already exists and could not be deleted\nremove it and try again" % openshift_folder)
-
-	os.mkdir(openshift_folder)
-	if not os.path.exists(openshift_folder):
-		error_message("ERROR - '%s' folder could not be created" % openshift_folder)
+	create_folder(openshift_folder)
 
 	app_folder = os.path.join(openshift_folder, options.app)
-	if not os.path.exists(app_folder): os.mkdir(app_folder)
-	if not os.path.exists(app_folder):
-		error_message("ERROR - '%s' folder could not be created" % app_folder)
+	create_folder(app_folder)
 
 	#init repo
 	out, err, ret = shellexecute( ['git', 'init'], location=app_folder, 
 		msg="Creating git repo at '%s'" % app_folder, exit_on_error=True )
 	
 	#add remote
-	out, err, ret = shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, debug=options.debug,
-		msg="Adding %s as a remote repo to '%s'" % (openshift_app.repo, app_folder), exit_on_error=True)
+	shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, debug=options.debug,
+		msg="Adding %s as a remote repo to '%s'" % (openshift_app.repo, app_folder), exit_on_error=True )
 
 	#fetch remote
-	out, err, ret = shellexecute( ['git', 'fetch', 'origin'], location=app_folder, 
-		msg="fetching from origin (%s) repo" % openshift_app.repo, debug=options.debug, output=True, exit_on_error=True)
+	shellexecute( ['git', 'fetch', 'origin'], location=app_folder, 
+		msg="fetching from origin (%s) repo" % openshift_app.repo, debug=options.debug, output=True, exit_on_error=True )
 
 	#merge remote
-	out, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, 
-		msg="Merging from origin/master (%s)" % openshift_app.repo, debug=options.debug, exit_on_error=True)
+	shellexecute( ['git', 'merge', 'origin/master'], location=app_folder, 
+		msg="Merging from origin/master (%s)" % openshift_app.repo, debug=options.debug, exit_on_error=True )
 
 	local_repo_remove_default_app(app_folder, options)
 
@@ -485,13 +447,13 @@ def local_repo_remove_default_app(app_folder, options):
 	#remove useless openshift app
 	if os.path.exists(os.path.join(app_folder, 'src')) or os.path.exists(os.path.join(app_folder, 'pom.xml')):
 		#remove default app
-		out, err, ret = shellexecute( ['rm', '-fr', 'src', 'pom.xml'], location=app_folder, 
+		shellexecute( ['rm', '-fr', 'src', 'pom.xml'], location=app_folder, 
 			msg="Removing default application", debug=options.debug, exit_on_error=True )
 
-		out, err, ret = shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug, 
+		shellexecute( ['git', 'add', '-A'], location=app_folder, debug=options.debug, 
 			msg="Adding changes to be committed", exit_on_error=True )
 
-		out, err, ret = shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=app_folder, debug=options.debug,
+		shellexecute( ['git', 'commit', '-m', '"Removed default app"'], location=app_folder, debug=options.debug,
 			msg="Committing changes", exit_on_error=True )
 
 		#no need to push right now, will do it later anyway...
@@ -508,7 +470,7 @@ def openshift_info(options):
 		if hasattr(options, item) and eval('options.%s' % item) != None and eval('options.%s' % item) != '':
 			info_cmd.append("--%s=%s" % (item, eval('options.%s' % item)))
 
-	out, err, ret = shellexecute(info_cmd, output=True, 
+	shellexecute( info_cmd, output=True, 
 		msg="Getting information for %s account" % options.rhlogin, exit_on_error=True )
 	
 def openshift_app(options):
@@ -521,143 +483,4 @@ def openshift_app(options):
 	for key in openshift_app.__dict__:
 		print '%s: %s' % (key, openshift_app.__dict__[key])
 
-def appsinfo(options):
 
-	info_cmd = ["rhc-domain-info", "--apps", "--rhlogin=%s" % options.rhlogin]
-
-	if options.password != '': info_cmd.append("--password=%s" % options.password)
-
-	out, err, ret = shellexecute(info_cmd, msg="Contacting openshift...", debug=options.debug, exit_on_error=True)
-
-	return parseuserinfo(out)
-
-def appinfo(options):
-	apps = appsinfo(options)
-
-	if not apps.has_key(options.app): return None
-
-	return apps[options.app]
-
-def message(lines):
-	if isinstance(lines, str): lines = [lines]
-	#print lines
-	for line in lines: print "~ " + line.rstrip('\n')
-	print "~"
-
-def error_message(err):
-	message(err)
-	sys.exit(-1)
-
-def shellexecute(params, output=False, location=None, debug=False, msg=None, err_msg=None,
-	raw_error=False, exit_on_error=False):
-
-	#development
-	#debug = True
-
-	std_out, std_err, ret = '', '', -1
-	err = ''
-
-	if msg != None: message(msg)
-
-	if debug: message("about to execute: '" + " ".join(params) + "'")
-	try:
-		if location != None:
-			if not os.path.exists(location):
-				err = "directory '%s' does not exists" % location
-				return out, err
-			save_dir = os.getcwd()
-			os.chdir(location)
-
-		if output:
-			ret = subprocess.call(params)
-		else:
-			proc = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-			(std_out, std_err) = proc.communicate()
-			ret = proc.returncode
-
-	except Exception as e:
-		std_err = "Error %s (%s)" % ( str(e), str(sys.exc_info()[0]) )
-
-	out = std_out
-	if std_err != '': err = [std_err]
-
-	if (std_err != '' or ret != 0) and not raw_error: 
-		err.insert(0, "error executing: %s (return code %s)" % (" ".join(params), ret ) )
-
-	if location != None: os.chdir(save_dir)
-
-	if debug:
-		print "out: %s" % out
-		print "err: %s" % err
-		print "ret: %s" % ret
-
-	if exit_on_error and (std_err != '' or ret != 0):
-		if out != '': err.insert(0, out)
-		if err_msg != None: 
-			err.insert(0, err_msg)
-		else:
-			if msg != None: err.insert(0, "ERROR - error " + lowerFirst(msg))
-		error_message(err)
-
-	return out, err, ret
-
-def lowerFirst(text):
-	return text[:1].lower() + text[1:]
-
-def elapsed(start):
-	return format_time(time.time() - start)
-
-def format_time(seconds):
-	return "%d:%02d:%02d.%03d" % \
-		reduce(lambda ll,b : divmod(ll[0],b) + ll[1:],
-    [(seconds*1000,),1000,60,60])
-
-def is_array(var):
-	return isinstance(var, (list, tuple))
-
-def parseuserinfo(data):
-	apps, app = {}, None
-
-	lines = data.splitlines()
-
-	for line in lines:
-		if ignoreline(line): continue
-		if isApplication(line):
-			if app != None: apps[app.name] = app
-			app = openshift_application(line)        
-		else:
-			if line.find(":") != -1:
-				line = line.strip().lower()
-				key, value = line.split(":", 1)
-				if key == "creation": app.creation = value.strip()
-				if key == "framework": app.framework = value.strip()
-				if key == "git url": app.repo = value.strip()
-				if key == "public url": app.url = value.strip()
-
-	#add last application
-	if app != None: apps[app.name] = app
-
-	return apps
-
-def isApplication(line):
-	if ignoreline(line): return False
-	return not line.startswith(" ")
-
-def ignoreline(line):
-	return line == '' or startswithany(line, ["Contacting", "Application Info", "=="])
-
-def startswithany(text, prefixes):
-	for prefix in prefixes:
-		if text.startswith(prefix):
-			return True
-	return False
-
-class openshift_application:
-
-	def __init__(self, name='', creation='', framework='', repo='', url=''):
-		self.name, self.creation, self.framework, self.repo, self.url = \
-		name, creation, framework, repo, url
-
-	def __repr__(self):
-		return 'name: %s, creation: %s, framework: %s, repo: %s, url: %s' % \
-		(self.name, self.creation, self.framework, self.repo, self.url)
