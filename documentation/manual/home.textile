@@ -45,16 +45,13 @@ bc. # Application dependencies
 require:
     - play
     - com.playdoces -> openshift 1.0
- 
 #My custom repositories
 repositories:
-    
     - playdoces:
         type:       http
         artifact:   "http://playdoces.appspot.com/repo/[module]-[revision].zip"
         contains:
             - com.playdoces -> *
-
 
 After that, deploying your play application to openshift is as easy as:
 
