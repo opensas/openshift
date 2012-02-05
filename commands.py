@@ -3,6 +3,7 @@ import re
 import os
 import shutil
 import webbrowser
+import getpass
 
 from datetime import datetime
 from optparse import OptionParser
@@ -67,10 +68,16 @@ def execute(**kargs):
 	if options.subdomain == '': options.subdomain = app.readConf('openshift.application.subdomain')
 
 	if options.rhlogin == '': options.rhlogin = app.readConf('openshift.rhlogin')
-	if options.rhlogin == '': error_message("You must provide your red hat's login using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
+	if options.rhlogin == '': 
+		message("You must provide your openshift login using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
+		options.rhlogin = raw_input("~ Enter your openshift login: ")
+		if options.rhlogin == '': error_message("ERROR - No openshift login specified.")
 
 	if options.password == '': options.password = app.readConf('openshift.password')
-	if options.password == '': error_message("You must provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
+	if options.password == '': 
+		message("You must provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
+		options.password = getpass.getpass("~ Enter your openshift password: ")
+		if options.password == '': error_message("ERROR - No openshift login specified.")
 
 	if options.debug == False: options.debug = ( app.readConf('openshift.debug') in [True, '1', 'y', 'on', 'yes', 'enabled'] )
 
