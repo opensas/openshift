@@ -104,6 +104,34 @@ def remove_file(file, silent=False):
 	if os.path.exists(file):
 		error_message("ERROR - '%s' file could not be deleted\nremove it and try again" % file)
 
+def remove_fsobject(fs, silent=False):
+
+	if os.path.isfile(fs): remove_file(fs, silent)
+	if os.path.isdir(fs): remove_folder(fs, silent)
+
+def remove_all(path, silent=False, exclude=[]):
+
+	if not os.path.isdir(path): return "err: %s path not found" % path
+
+	for file in os.listdir(path):
+
+		if file in exclude:
+			if not silent: message( "skipping %s" % file)
+		else:
+			remove_fsobject(os.path.join(path,file), silent)
+
+	return ""
+
+def move_all(source, target):
+
+	if not os.path.isdir(source): return "err: source path %s not found" % source
+	if not os.path.isdir(target): return "err: target path %s not found" % target
+
+	for file in os.listdir(source):
+		shutil.move(os.path.join(source,file), os.path.join(target,file))
+
+	return ""
+
 def create_folder(folder, silent=False):
 
 	remove_folder(folder, silent=True)

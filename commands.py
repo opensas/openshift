@@ -21,11 +21,12 @@ MODULE = 'openshift'
 
 # Commands that are specific to your module
 COMMANDS = [
-	"rhc:test", "rhc:hello", "rhc:chk", "rhc:deploy", "rhc:destroy", "rhc:logs", "rhc:info", "rhc:open"
+	"rhc:test", "rhc:hello", "rhc:chk", "rhc:fetch", "rhc:deploy", "rhc:destroy", "rhc:logs", "rhc:info", "rhc:open"
 ]
 
 HELP = {
 	'rhc:chk': 			'Check openshift prerequisites, application and git repo.',
+	'rhc:fetch': 		'Fetches application from remote openshift repository.',
 	'rhc:deploy': 	'Deploys application on openshift.',
 	'rhc:destroy': 	'Destroys application on openshift.',
 	'rhc:logs': 		'Show the logs of the application on openshift.',
@@ -80,10 +81,14 @@ def execute(**kargs):
 
 	#print options
 
+	#test: foce use-local
+	options.use_local = True
+
 	if command == "hello": 		print "~ Hello from openshift module"
 	if command == "test": 		openshift_test(app, env, options)
 
 	if command == "chk": 		  openshift_check(app, options)
+	if command == "fetch": 		openshift_fetch(args, app, env, options)
 	if command == "deploy": 	openshift_deploy(args, app, env, options)
 	if command == "destroy": 	openshift_destroy(app, options)
 	if command == "logs": 		openshift_logs(options)
@@ -111,12 +116,56 @@ def openshift_test(app, env, options):
 	print "testing 1,2,3"
 	check_app(app, options)
 
-def openshift_deploy(args, app, env, options):
+def openshift_fetch(args, app, env, options):
+	
+	openshift_app = check_app(app, options)
+
+	if not options.bypass:
+		message( [
+			"!!!! WARNING !!!! WARNING !!!! WARNING !!!!", 
+			"You are about to destroy your local application and local git repository", 
+			"and we will clone your openshift '%s' git repository" % options.app, 
+			"This is NOT reversible, all remote data for this application will be removed."
+		] )
+
+		answer = raw_input("~ Do you want to destroy your local application (y/n): [%s] " % "no")
+
+		answer = answer.strip().lower()
+		if answer not in ['yes', 'y']:
+			error_message("openshift application fetch canceled")
+
+	try:
+
+		app_folder = app.path
+
+		#clone the repo into a tmp folder
+		tmp_folder = os.path.join(app_folder, '.tmp')
+
+		create_folder(tmp_folder)
+
+		shellexecute( ['git', 'clone', openshift_app.repo], location=tmp_folder, debug=options.debug, exit_on_error=True,
+			msg="Clonning openshift repo at (%s)" % tmp_folder, output=True )
+	
+		cloned_app_folder = os.path.join(tmp_folder, openshift_app.name)
+
+		message("removing local app at %s" % app_folder)
+		remove_all(app_folder, exclude=['.tmp'], silent=True)
+
+		move_all(cloned_app_folder, app_folder)
+
+		message("application succesfully fetched")
+
+	finally:
+		remove_folder(tmp_folder)
+
+def openshift_deploy(args, app, env, options, openshift_app=None):
 	start = time.time()
 
 	check_appname(options.app)
 
-	openshift_app = check_app(app, options)				# check remote repo
+	if openshift_app == None: openshift_app = check_app(app, options)				# check remote repo
+	if openshift_app == None: error_message("ERROR - '%s' application not found at openshift" % options.app)
+
 	check_local_repo(app, openshift_app, options) # check local repo
 
 	commit_local_repo(app, options)
@@ -169,7 +218,7 @@ def openshift_deploy(args, app, env, options):
 	shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, 
 		msg="Commiting deployment", debug=options.debug, output=True, exit_on_error=True )
 
-	shellexecute( ['git', 'push', 'origin'], location=app_folder, 
+	shellexecute( ['git', 'push', 'origin', '--force'], location=app_folder, 
 		msg="Pushing changes to origin", debug=options.debug, output=True, exit_on_error=True)
 
 	message([ "", "app successfully deployed in %s" % elapsed(start) ])
@@ -263,10 +312,11 @@ def openshift_check(app, options):
 	check_git(options)
 	check_ruby(options)
 	check_rhc(options)
-	#check_rhc_chk(options)
+	
 	check_appname(options.app)
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
+	check_rhc_chk(options)
 
 def check_java(options):
 	out, err, ret = shellexecute(["java", "-version"], debug=options.debug, raw_error=True, exit_on_error=False)
@@ -298,19 +348,43 @@ def parse_java_version(lines):
 	return match.group(0)
 
 def check_git(options):
-	shellexecute(["git", "version"], debug=options.debug,
+	out, err, ret = shellexecute(["git", "version"], debug=options.debug,
 		err_msg="Failed to execute git, check that git is installed.", exit_on_error=True )
 	message("OK! - checked git version: %s" % out)
 
 def check_ruby(options):
-	shellexecute(["ruby", "-v"], debug=options.debug,
+	out, err, ret = shellexecute(["ruby", "-v"], debug=options.debug,
 		err_msg="Failed to execute ruby, check that ruby is installed.", exit_on_error=True )
 	message("OK! - checked ruby version: %s" % out)
 
 def check_rhc(options):
-	shellexecute(["gem", "list", "rhc"], debug=options.debug,
+	out, err, ret = shellexecute(["gem", "list", "rhc", "--local"], debug=options.debug,
 		err_msg="Failed to execute gem list rhc, check that gem is installed.", exit_on_error=True )
+
+	#0.84.15 or higher
+	if "rhc " not in out:
+		error_message("rhc ruby gem not found. Try installing it with 'gem install rhc'")
+
+	versions = re.findall("\d{1,2}\.\d{1,2}\.\d{1,2}",out)
+
+	if len(versions) == 0:
+		error_message("no version of rhc ruby gem found. Try installing it with 'gem install rhc'")
+
+	#check current version
+	current = versions[0] 
+	if current < "0.84.15":
+		error_message( [
+			"the latest rhc ruby gem version found on your system is %s" % current,
+			"openshift module requires rhc ruby gem 0.8.15 or higher, you can upgrade it running 'gem update rhc'"
+		] )
+
 	message("OK! - checked rhc version: %s" % out)
+
+	if len(versions) > 1:
+		message( [
+			"Tip: you have %s versions of rhc ruby gem installed." % len(versions),
+			"You can remove old versions running 'gem cleanup rhc'."
+		] )
 
 def check_rhc_chk(options):
 	check_cmd = ["rhc-chk"]
@@ -366,7 +440,7 @@ def check_local_repo(app, openshift_app, options):
 
 	git_folder = os.path.join(app_folder, '.git')
 	if not os.path.exists(git_folder):
-		create_local_repo(app, openshift_app, options, confirmMessage="ERROR - '%s' does not seem to be a valid git repository, .git folder not found." % app_folder )
+		create_local_repo(app, openshift_app, options, confirmMessage="!!! - '%s' does not seem to be a valid git repository, .git folder not found." % app_folder )
 
 	out, err, ret = shellexecute( ['git', 'status'], location=app_folder, debug=options.debug, exit_on_error=False)
 	if err != '' or ret != 0:
@@ -416,8 +490,6 @@ def create_app(app, options):
 
 			start = time.time()
 
-			message("creating a new openshift '%s' application at '%s'" % (options.app, tmp_folder))
-
 			create_cmd = ["rhc-create-app", "--type", 'jbossas-7.0']
 
 			if options.debug == True: create_cmd.append("-d")
@@ -451,7 +523,7 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 
 	if confirmMessage != '':
 		message(confirmMessage)
-		answer = raw_input("~ Do you want to create local repo and merge openshift application? [%s] " % "yes")
+		answer = raw_input("~ Do you want to create your local repo and merge openshift application? [%s] " % "yes")
 
 		answer = answer.strip().lower()
 		if answer not in ['yes', 'y', '']:
