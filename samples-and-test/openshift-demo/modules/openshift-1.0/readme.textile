@@ -1,0 +1,15 @@
+h1. Openshift Module for Play! Framework Applications
+
+Openshift is Red Hat's free, auto-scaling, cloud-based platform-as-a-service for Java, Perl, PHP, Python, and Ruby applications.
+
+With this module, you'll be able to easily deploy and manage your play application on Red Hat's cloud platform. 
+
+The module does not depend on any external Java libray. You'll just need an openshift account, git and openshift command line tools installed on your workstation.
+
+Source code is available at <a href="https://github.com/opensas/openshift">https://github.com/opensas/openshift</a>
+Written by Sebastián Scarano (<a href="http://www.twitter.com/develsas">@develsas</a>)
+
+h2. Licence
+
+Openshift module for Play Framework is distributed under the "Apache 2 licence":http://www.apache.org/licenses/LICENSE-2.0.html.
+
