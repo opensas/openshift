@@ -72,12 +72,14 @@ def execute(**kargs):
 		message("You must provide your openshift login using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
 		options.rhlogin = raw_input("~ Enter your openshift login: ")
 		if options.rhlogin == '': error_message("ERROR - No openshift login specified.")
+		message("")
 
 	if options.password == '': options.password = app.readConf('openshift.password')
 	if options.password == '': 
 		message("You must provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
 		options.password = getpass.getpass("~ Enter your openshift password: ")
 		if options.password == '': error_message("ERROR - No openshift login specified.")
+		message("")
 
 	if options.debug == False: options.debug = ( app.readConf('openshift.debug') in [True, '1', 'y', 'on', 'yes', 'enabled'] )
 

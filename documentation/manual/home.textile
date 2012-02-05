@@ -11,7 +11,7 @@ Written by Sebastián Scarano (<a href="http://www.twitter.com/develsas">@devels
 
 h2. Sample application
 
-There's a sample application at samples_and_test/openshift-demo. Just issue @play run@ to see it running locally.
+There's a sample application at samples_and_test/openshift-demo. Just issue @play run@ to see it running locally. It just displays play configuration and the host environment variables to let you check that your app is running on openshift.
 
 !images/demo_app!
 
