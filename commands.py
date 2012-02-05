@@ -88,9 +88,7 @@ def execute(**kargs):
 
 	app.check()
 
-	#print options
-
-	#test: foce use-local
+	#test: force use-local
 	options.use_local = True
 
 	if command == "hello": 		print "~ Hello from openshift module"

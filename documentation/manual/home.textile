@@ -4,14 +4,14 @@ Openshift is Red Hat's free, auto-scaling, cloud-based platform-as-a-service for
 
 With this module, you'll be able to easily deploy and manage your play applications on Red Hat's cloud platform, with just a couple of keystrokes from the command line.
 
-The module does not depend on any external Java libray. You'll just need an openshift account, git and openshift command line tools installed on your workstation.
+The module does not depend on any external Java libray. You'll just need an openshift account, git and the openshift command line tools installed on your workstation.
 
 Source code is available at <a href="https://github.com/opensas/openshift">https://github.com/opensas/openshift</a>
 Written by Sebastián Scarano (<a href="http://www.twitter.com/develsas">@develsas</a>)
 
 h2. Sample application
 
-There's a sample application at samples_and_test/openshift-demo. Just issue @play run@ to see it running locally. It just displays play configuration and the host environment variables to let you check that your app is running on openshift.
+There's a sample application at samples_and_tests/openshift-demo. Just issue @play run@ to see it running locally. It just displays play configuration and the host environment variables to let you check that your app is running on openshift.
 
 !images/demo_app!
 
