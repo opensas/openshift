@@ -2,7 +2,6 @@ h1. Openshift module
 
 Openshift is Red Hat's free, auto-scaling, cloud-based platform-as-a-service for Java, Perl, PHP, Python, and Ruby applications.
 
-
 With this module, you'll be able to easily deploy and manage your play applications on Red Hat's cloud platform, with just a couple of keystrokes from the command line.
 
 The module does not depend on any external Java libray. You'll just need an openshift account, git and openshift command line tools installed on your workstation.
@@ -12,19 +11,23 @@ Written by Sebastián Scarano (<a href="http://www.twitter.com/develsas">@devels
 
 h2. Sample application
 
-p(note). Your module should contain a sample app in the @sample@ directory that demonstrates the module. Describe how to run the demo here.
+There's a sample application at samples_and_test/openshift-demo. Just issue @play run@ to see it running locally.
+
+!images/demo_app!
+
+Then run @play rhc:chk@ to verify that you have installed all the prerequisites. After that issue @play rhc:deploy -o@ to create your remote application at openshift, create a local git repo, package your app as a war file, commit your new app, and deploy to openshift. Thanks to the @-o@ parameter the module will open your openshift app in a web browser after deployment.
 
 h2. <a name="getting_started">Prerequisites</a>
 
 Before being able to deploy your play application to openshift, you have to:
 
-* "install java jdk 1.5 or 1.6":[http://www.oracle.com/technetwork/java/javase/downloads/index.html] (at the moment openshift doesn't support play apps compiled against jdk 1.7.x
+* "install java jdk 1.5 or 1.6":[http://www.oracle.com/technetwork/java/javase/downloads/index.html] (at the moment openshift doesn't support play apps compiled against jdk 1.7.x)
 
-* "install play":[http://www.playframework.org/documentation/latest/install]
+* "install play framework":[http://www.playframework.org/documentation/latest/install]
 
 * "sign up for openshift":[https://openshift.redhat.com/app/user/new/express]
 
-* "install openshift's command line tools":[https://www.redhat.com/openshift/community/kb/kb-e1000/installing-openshift-express-client-tools-on-non-rpm-based-systems].
+* "install openshift's command line tools" 0.84.15 or higher:[https://www.redhat.com/openshift/community/kb/kb-e1000/installing-openshift-express-client-tools-on-non-rpm-based-systems].
 
 * and finally "create a domain":[http://docs.redhat.com/docs/en-US/OpenShift_Express/2.0/html/User_Guide/sect-User_Guide-Working_With_Domains.html#sect-User_Guide-Working_With_Domains-Creating_a_Domain]
 
@@ -39,7 +42,7 @@ Then execute:
 
 bc. play deps
 
-p(note). Openshift hasn't been added to playframework's module repository so far. In the meantime, you can start using it right away with a dependencies.yml file like the following:
+p(note). Openshift module hasn't been added to playframework's module repository so far. In the meantime, you can start using it right away with a dependencies.yml file like the following:
 
 bc. # Application dependencies
 require:
@@ -55,11 +58,11 @@ repositories:
 
 After that, deploying your play application to openshift is as easy as:
 
-bc. play rhc:deploy -l <your_openshift_email_acount> -p <your_openshift_password>
+bc. play rhc:deploy -o
 
 Ant that's all!
 
-The module will create your app at openshift if it's not already there, compile and package your app as a war folder, commit it in yout local git repository and then push it to openshift. Moreover, you can add the @-o@ parameter to have the module automatically open your newly deployed app in a web browser.
+The module will ask you for you openshift account (the email you signed up with) and your password. Then it will create your app at openshift if it's not already there, compile and package your app as a war folder, commit it in yout local git repository and then push it to openshift. Moreover, the @-o@ parameter tells openshift module to automatically open your newly deployed app in a web browser.
 
 h2. Configuration
 
@@ -75,7 +78,7 @@ Red Hat login password is a mandatory parameter. You can specify it using the @-
 
 h3. openshift.application.name: application name
 
-The application name is a mandatory parameter. You can specify it using the @-a@ or @--app@ command line parameter or adding an @openshift.application.name@ option in you application.conf file. If none of these are specified, openshift module will read the application's file from the @application.name@ entry in your application.conf file.
+The application name is a mandatory parameter. You can specify it using the @-a@ or @--app@ command line parameter or adding an @openshift.application.name@ option in you application.conf file. If none of these are specified, openshift module will read the application's file from the @application.name@ entry in your application.conf file. Notice that openshift application's name can only contain alphanumeric characters. So if you created a play app names my-demo, it will fail beacause of the dash. In that case you can use this parameter to specify another application name for openshift.
 
 h3. openshift.application.subdomain: application subdomain
 
@@ -99,21 +102,27 @@ h2. Usage
 
 Using openshift module is quite straightforward. First you should create an @openshift.rhlogin@ and @openshift.password@ configuration in your application.conf file, to avoid having to enter them on every command. 
 
-First of all, it's a good moment to check that you have fullfilled all the prerequisites. So issue:
+After that, it's a good idea to check that you have fullfilled all the prerequisites. So issue:
 
 bc. play rhc:chk
 
 The module will then check that you have every needed prerequisite installed (jdk 1.5 or 1.6, git, ruby, ruby gems, openshift command line tools). The module will also check that the application has been created on openshift, if it's not, it will ask you to create it right away.
 
+p(note). If you have already deployed your application to openshift, and you just want to retrieve it from your remote git repository, just issue: @play rhc:fetch@.
+ 
+Take into account that this is a destructive operation. It will completely remove your local app and replace it with the contents of your remote repo.
+ 
 To deploy your application on openshift you just have to run:
 
 bc. play rhc:deploy
 
-With this command, the module will compile and package you app as an exploded war file at @deployments/ROOT.war@, add this to your local git repository index, commit it, and then push the changes to openshift. If you want the module to open a web browser with your application running on openshift after deploying, just issue @play rhc:deploy -o@.
+With this command, the module will compile and package you app as an exploded war file at @deployments/ROOT.war@, add this to your local git repository index, commit it, and then push it all to openshift. After that openshift will automatically redeploy your application (you can see it in action with @play rhc:logs@). If you want the module to open a web browser with your application running on openshift after deploying, just issue @play rhc:deploy -o@.
 
 To have a look at your server logs, issue:
 
 bc. play rhc:logs
+
+!images/logs!
 
 Finally, if you think you want to remove your application from openshift, just run:
 
@@ -125,13 +134,17 @@ h3. rhc:chk
 
 Check openshift prerequisites, application and git repo.
 
+h3. rhc:fetch
+
+Deletes your local application an replaces it with your application hosted at openshift.
+
 h3. rhc:info
 
 Displays information about user and configured applications.
 
 h3. rhc:open
 
-Opens the application deployed on openshift in web browser.
+Open the application deployed on openshift in web browser.
 
 h3. rhc:deploy
 
