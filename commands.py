@@ -91,6 +91,8 @@ def execute(**kargs):
 	#test: force use-local
 	options.use_local = True
 
+	check_windows()
+
 	if command == "hello": 		print "~ Hello from openshift module"
 	if command == "test": 		openshift_test(app, env, options)
 
@@ -324,6 +326,15 @@ def openshift_check(app, options):
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
 	check_rhc_chk(options)
+
+def check_windows():
+
+	#not supported on windows
+	if os.name == 'nt':
+		error_message([
+			"ERROR - Windows OS is not supported in the current version of openshift module",
+			"(Reason: no git support in standard windows shell.)"
+		])
 
 def check_java(options):
 	out, err, ret = shellexecute(["java", "-version"], debug=options.debug, raw_error=True, exit_on_error=False)

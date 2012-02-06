@@ -157,3 +157,7 @@ Destroys application on openshift.
 h3. rhc:logs
 
 Show the logs of the application on openshift.
+
+h2. Known issues
+
+In the current version of the module, Windows os is not supported. This is because git doesn't work in the standard shell, you have to use it from the "git bash option".
