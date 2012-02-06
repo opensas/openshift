@@ -227,8 +227,8 @@ def openshift_deploy(args, app, env, options, openshift_app=None):
 	shellexecute( ['git', 'commit', '-m', commit_message], location=app_folder, 
 		msg="Commiting deployment", debug=options.debug, output=True, exit_on_error=True )
 
-	shellexecute( ['git', 'push', 'origin', '--force'], location=app_folder, 
-		msg="Pushing changes to origin", debug=options.debug, output=True, exit_on_error=True)
+	shellexecute( ['git', 'push', 'openshift', '--force'], location=app_folder, 
+		msg="Pushing changes to openshift", debug=options.debug, output=True, exit_on_error=True)
 
 	message([ "", "app successfully deployed in %s" % elapsed(start) ])
 
@@ -552,7 +552,7 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 		msg="Creating git repo at '%s'" % app_folder, exit_on_error=True )
 	
 	#add remote
-	shellexecute( ['git', 'remote', 'add', 'origin', openshift_app.repo], location=app_folder, debug=options.debug,
+	shellexecute( ['git', 'remote', 'add', 'openshift', openshift_app.repo], location=app_folder, debug=options.debug,
 		msg="Adding %s as a remote repo to '%s'" % (openshift_app.repo, app_folder), exit_on_error=True )
 
 	#just in case the default openshift app is there
@@ -586,8 +586,8 @@ def commit_local_repo(app, options):
 def merge_repos(app, openshift_app, options):
 
 	#fetch remote
-	shellexecute( ['git', 'fetch', 'origin'], location=app.path, debug=options.debug,
-		msg="fetching from origin (%s) repo" % openshift_app.repo, output=True, exit_on_error=True )
+	shellexecute( ['git', 'fetch', 'openshift'], location=app.path, debug=options.debug,
+		msg="fetching from openshift remote (%s) repo" % openshift_app.repo, output=True, exit_on_error=True )
 
 	conflict = False
 	use_local = options.use_local
@@ -597,8 +597,8 @@ def merge_repos(app, openshift_app, options):
 	if not use_local and not use_remote:
 
 		#merge remote
-		out, err, ret = shellexecute( ['git', 'merge', 'origin/master'], location=app.path, debug=options.debug, 
-			msg="Merging from origin/master (%s)" % openshift_app.repo, exit_on_error=False )
+		out, err, ret = shellexecute( ['git', 'merge', 'openshift/master'], location=app.path, debug=options.debug, 
+			msg="Merging from openshift/master (%s)" % openshift_app.repo, exit_on_error=False )
 
 		#Conflicts detected
 		if ret == 1 and "CONFLICT" in out:
@@ -660,11 +660,11 @@ def merge_repos(app, openshift_app, options):
 	if use_local: merge_command.append("ours")
 	if use_remote: merge_command.append("theirs")
 
-	merge_command.append("origin/master")
+	merge_command.append("openshift/master")
 
 	#merge remote
 	our, err, ret = shellexecute( merge_command, location=app.path, debug=options.debug, 
-		msg="Merging from origin/master (%s)" % openshift_app.repo, exit_on_error=True )
+		msg="Merging from openshift/master (%s)" % openshift_app.repo, exit_on_error=True )
 
 def local_repo_remove_default_app(repo_folder, options):
 	
@@ -695,8 +695,8 @@ def local_repo_remove_default_app(repo_folder, options):
 			msg="Committing changes (removing default app)", exit_on_error=True )
 
 		#we'll push it right now, because we will delete the local repo
-		shellexecute( ['git', 'push', 'origin'], location=repo_folder, 
-			msg="Pushing changes to origin... (removing default app)", debug=options.debug, output=True, exit_on_error=True)
+		shellexecute( ['git', 'push'], location=repo_folder, 
+			msg="Pushing changes to remote openshift repo... (removing default app)", debug=options.debug, output=True, exit_on_error=True)
 
 def openshift_info(options):
 	info_cmd = ["rhc-domain-info", "--apps"]
