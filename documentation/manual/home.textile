@@ -11,7 +11,7 @@ Written by Sebastián Scarano (<a href="http://www.twitter.com/develsas">@devels
 
 h2. Sample application
 
-There's a sample application at samples_and_tests/openshift-demo. Just issue @play run@ to see it running locally. It just displays play configuration and the host environment variables to let you check that your app is running on openshift.
+There's a sample application at samples_and_tests/openshift-demo. Just issue @play deps@ and then @play run@ to see it running locally. It just displays play configuration and the host environment variables to let you check that your app is running on openshift.
 
 !images/demo_app!
 
@@ -27,7 +27,7 @@ Before being able to deploy your play application to openshift, you have to:
 
 * "sign up for openshift":[https://openshift.redhat.com/app/user/new/express]
 
-* "install openshift's command line tools" 0.84.15 or higher:[https://www.redhat.com/openshift/community/kb/kb-e1000/installing-openshift-express-client-tools-on-non-rpm-based-systems].
+* "install openshift's command line tools":[https://www.redhat.com/openshift/community/kb/kb-e1000/installing-openshift-express-client-tools-on-non-rpm-based-systems] 0.84.15 or higher.
 
 * and finally "create a domain":[http://docs.redhat.com/docs/en-US/OpenShift_Express/2.0/html/User_Guide/sect-User_Guide-Working_With_Domains.html#sect-User_Guide-Working_With_Domains-Creating_a_Domain]
 
@@ -41,20 +41,6 @@ bc. require:
 Then execute:
 
 bc. play deps
-
-p(note). Openshift module hasn't been added to playframework's module repository so far. In the meantime, you can start using it right away with a dependencies.yml file like the following:
-
-bc. # Application dependencies
-require:
-    - play
-    - com.playdoces -> openshift 1.0
-#My custom repositories
-repositories:
-    - playdoces:
-        type:       http
-        artifact:   "http://playdoces.appspot.com/repo/[module]-[revision].zip"
-        contains:
-            - com.playdoces -> *
 
 After that, deploying your play application to openshift is as easy as:
 
@@ -111,7 +97,7 @@ The module will then check that you have every needed prerequisite installed (jd
 p(note). If you have already deployed your application to openshift, and you just want to retrieve it from your remote git repository, just issue: @play rhc:fetch@.
  
 Take into account that this is a destructive operation. It will completely remove your local app and replace it with the contents of your remote repo.
- 
+
 To deploy your application on openshift you just have to run:
 
 bc. play rhc:deploy
