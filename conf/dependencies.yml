@@ -1,4 +1,4 @@
-self: play -> openshift 0.1.0
+self: play -> openshift 0.1.1
 
 require:
     - play
