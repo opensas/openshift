@@ -3,6 +3,7 @@ import subprocess
 import os
 import shutil
 import time
+import re
 
 def message(lines):
 	if isinstance(lines, str): lines = [lines]
@@ -71,6 +72,10 @@ def shellexecute(params, output=False, location=None, debug=False, msg=None, err
 		error_message(err)
 
 	return out, err, ret
+
+#returns True if text has at least a char in uppercase
+def hasUpperChar(text):
+	return (re.match("^.*[A-Z].*$", text) != None)
 
 def lowerFirst(text):
 	return text[:1].lower() + text[1:]

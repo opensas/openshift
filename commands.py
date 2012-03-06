@@ -56,27 +56,27 @@ def execute(**kargs):
 	parser.add_option("-m", "--message",    default='',  		dest="message",     help="Commit message")
 	parser.add_option("",   "--timeout",    default='',     dest="timeout",     help="Timeout, in seconds, for connection")
 	parser.add_option("-o", "--open",      	default=False,  dest="open",     		action="store_true", help="Open site after deploying")
-	parser.add_option("-b", "--bypass",     default=False,  dest="bypass",     	action="store_true", help="Bypass warnings")
-	parser.add_option("", "--use-remote",   default=False,  dest="use_remote",  action="store_true", help="Resolve conflicts using remote repository (openshift wins)")
-	parser.add_option("", "--use-local",   	default=False,  dest="use_local",  	action="store_true", help="Resolve conflicts using local repository (you win)")
+	parser.add_option("-b", "--bypass",     default=False,  dest="bypass",     	action="store_true", help="Bypass questions, asume yes.")
 
 	options, args = parser.parse_args(args)
 
 	if options.app == '': options.app = app.readConf('openshift.application.name')
 	if options.app == '': options.app = app.readConf('application.name')
 
+	options.app = check_appname(options.app)
+
 	if options.subdomain == '': options.subdomain = app.readConf('openshift.application.subdomain')
 
 	if options.rhlogin == '': options.rhlogin = app.readConf('openshift.rhlogin')
 	if options.rhlogin == '': 
-		message("You must provide your openshift login using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
+		message("You can also provide your openshift login using the -l RHLOGIN command line option or setting openshift.rhlogin in application.conf file.")
 		options.rhlogin = raw_input("~ Enter your openshift login: ")
 		if options.rhlogin == '': error_message("ERROR - No openshift login specified.")
 		message("")
 
 	if options.password == '': options.password = app.readConf('openshift.password')
 	if options.password == '': 
-		message("You must provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
+		message("You can also provide your openshift password using the -p PASSWORD command line option or setting openshift.password in application.conf file.")
 		options.password = getpass.getpass("~ Enter your openshift password: ")
 		if options.password == '': error_message("ERROR - No openshift login specified.")
 		message("")
@@ -89,6 +89,7 @@ def execute(**kargs):
 	app.check()
 
 	#test: force use-local
+	options.use_remote = False
 	options.use_local = True
 
 	check_windows()
@@ -152,7 +153,7 @@ def openshift_fetch(args, app, env, options):
 
 		create_folder(tmp_folder)
 
-		shellexecute( ['git', 'clone', openshift_app.repo], location=tmp_folder, debug=options.debug, exit_on_error=True,
+		shellexecute( ['git', 'clone', openshift_app.repo, '--origin', 'openshift'], location=tmp_folder, debug=options.debug, exit_on_error=True,
 			msg="Clonning openshift repo at (%s)" % tmp_folder, output=True )
 	
 		cloned_app_folder = os.path.join(tmp_folder, openshift_app.name)
@@ -170,7 +171,7 @@ def openshift_fetch(args, app, env, options):
 def openshift_deploy(args, app, env, options, openshift_app=None):
 	start = time.time()
 
-	check_appname(options.app)
+	options.app = check_appname(options.app)
 
 	if openshift_app == None: openshift_app = check_app(app, options)				# check remote repo
 	if openshift_app == None: error_message("ERROR - '%s' application not found at openshift" % options.app)
@@ -322,7 +323,7 @@ def openshift_check(app, options):
 	check_ruby(options)
 	check_rhc(options)
 	
-	check_appname(options.app)
+	options.app = check_appname(options.app)
 	openshift_app = check_app(app, options)
 	check_local_repo(app, openshift_app, options)
 	check_rhc_chk(options)
@@ -423,9 +424,15 @@ def check_appname(appname):
 			"You can change application's name from the 'application.name' setting " +
 			"or specify a custom name for openshift application adding an 'openshift.application.name' setting " +
 			"in your application.conf file."
-		]
-)
+		] )
+
+	if hasUpperChar(appname):
+		appname = appname.lower()
+		message("WARNING! - application name should be lowercase, setting appname to '%s'" % appname)
+
 	message("OK! - checked application name: %s - OK!" % appname)
+
+	return appname
 
 #
 # Verifies that application exists at openshift, and returns it's information
@@ -493,9 +500,14 @@ def check_local_repo(app, openshift_app, options):
 
 	message("OK! - folder '%s' exists and seems to be a valid git repo" % git_folder)
 
-def create_app(app, options):
+# by default, it asumes the application doesn't exist
+# if check_app == True -> it will contact openshift to check for the existence of the app
+def create_app(app, options, check_app = False):
 
-	openshift_app = appinfo(options)
+	openshift_app = None
+
+	if check_app:
+		openshift_app = appinfo(options)
 
 	#create openshift application
 	if openshift_app == None:
@@ -539,7 +551,7 @@ def create_local_repo(app, openshift_app, options, confirmMessage=''):
 	if openshift_app == None:
 		error_message("Application not found at openshift.")
 
-	if confirmMessage != '':
+	if confirmMessage != '' and not options.bypass:
 		message(confirmMessage)
 		answer = raw_input("~ Do you want to create your local repo and merge openshift application? [%s] " % "yes")
 
