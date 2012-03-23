@@ -36,8 +36,8 @@ HELP = {
 }
 
 class OpenshiftOptionParser(OptionParser):
-    def error(self, msg):
-        pass
+	def error(self, msg):
+		pass
 
 def execute(**kargs):
 	command = kargs.get("command")
@@ -95,7 +95,7 @@ def execute(**kargs):
 	check_windows()
 
 	if command == "hello": 		print "~ Hello from openshift module"
-	if command == "test": 		openshift_test(app, env, options)
+	if command == "test": 		openshift_test(args, app, env, options)
 
 	if command == "chk": 		  openshift_check(app, options)
 	if command == "fetch": 		openshift_fetch(args, app, env, options)
@@ -107,24 +107,23 @@ def execute(**kargs):
 
 # This will be executed before any command (new, run...)
 def before(**kargs):
-    command = kargs.get("command")
-    app = kargs.get("app")
-    args = kargs.get("args")
-    env = kargs.get("env")
+	command = kargs.get("command")
+	app = kargs.get("app")
+	args = kargs.get("args")
+	env = kargs.get("env")
 
 # This will be executed after any command (new, run...)
 def after(**kargs):
-    command = kargs.get("command")
-    app = kargs.get("app")
-    args = kargs.get("args")
-    env = kargs.get("env")
+	command = kargs.get("command")
+	app = kargs.get("app")
+	args = kargs.get("args")
+	env = kargs.get("env")
 
-    if command == "new":
-        pass
+	if command == "new":
+		pass
 
-def openshift_test(app, env, options):
+def openshift_test(args, app, env, options):
 	print "testing 1,2,3"
-	check_app(app, options)
 
 def openshift_fetch(args, app, env, options):
 	
@@ -171,8 +170,6 @@ def openshift_fetch(args, app, env, options):
 def openshift_deploy(args, app, env, options, openshift_app=None):
 	start = time.time()
 
-	options.app = check_appname(options.app)
-
 	if openshift_app == None: openshift_app = check_app(app, options)				# check remote repo
 	if openshift_app == None: error_message("ERROR - '%s' application not found at openshift" % options.app)
 
@@ -206,7 +203,7 @@ def openshift_deploy(args, app, env, options, openshift_app=None):
 
 	start_war = time.time()
 
-	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=['deployments'])
+	patched_war.package_as_war(app, env, war_path, war_zip_path=None, war_exclusion_list=[deploy_folder])
 
 	if not os.path.exists(war_path):
 		error_message("ERROR - '%s' exploded war folder could not be created" % war_path)
@@ -520,7 +517,7 @@ def create_app(app, options, check_app = False):
 
 			start = time.time()
 
-			create_cmd = ["rhc-create-app", "--type", 'jbossas-7.0']
+			create_cmd = ["rhc-create-app", "--type", 'jbossas-7']
 
 			if options.debug == True: create_cmd.append("-d")
 

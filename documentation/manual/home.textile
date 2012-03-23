@@ -150,6 +150,9 @@ In the current version of the module, Windows os is not supported. This is becau
 
 h2. History
 
+* Version 0.1.2 - Mar 07, 2012
+** Updated module to use new cartridge name (changed from jboss-7.0 to jboss-7)
+
 * Version 0.1.1 - Mar 06, 2012
 ** Fixed error with applications with upper case characters in it's name
 ** Avoid contacting openshift when creating app
