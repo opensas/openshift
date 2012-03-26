@@ -5,15 +5,24 @@ import shutil
 import time
 import re
 
-def message(lines):
+def message(lines, hidePassword=True):
 	if isinstance(lines, str): lines = [lines]
 	#print lines
-	for line in lines: print "~ " + line.rstrip('\n')
+	for line in lines: 
+		if hidePassword: line = hide_password(line)
+		print "~ " + line.rstrip('\n')
 	print "~"
 
 def error_message(err):
 	message(err)
 	sys.exit(-1)
+
+def hide_password(value):
+	match = re.match( r'(.*\s--password=)(.*?)([\s\'\"].*)', value + ' ')
+	if match == None: return value
+	if len(match.groups()) != 3: return value
+
+	return match.group(1) + "*" * len(match.group(2)) + match.group(3).rstrip()
 
 def shellexecute(params, output=False, location=None, debug=False, msg=None, err_msg=None,
 	raw_error=False, exit_on_error=False):
@@ -134,6 +143,32 @@ def move_all(source, target):
 
 	for file in os.listdir(source):
 		shutil.move(os.path.join(source,file), os.path.join(target,file))
+
+	return ""
+
+def copy_all(source, target, silent=True):
+
+	if not os.path.isdir(source): 
+		return "err: source path %s not found" % source
+	if not os.path.isdir(target): 
+		return "err: target path %s not found" % target
+
+	if not silent: message( "copying %s contents to %s" % (source, target) )
+	for file in os.listdir(source):
+		sourcefile = os.path.join(source,file)
+		targetfile = os.path.join(target,file)
+		if not silent: message( "copying %s contents to %s" % (sourcefile, targetfile) )
+		shutil.copyfile(sourcefile, targetfile)
+
+	return ""
+
+def chmod_all(path, mode, silent=True):
+
+	if not os.path.isdir(path): return "err: source path %s not found" % source
+
+	if not silent: message( "setting permissions on %s files" % path )
+	for file in os.listdir(path):
+		os.chmod(os.path.join(path,file), mode)
 
 	return ""
 

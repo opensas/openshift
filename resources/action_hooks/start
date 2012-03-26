@@ -1,0 +1,54 @@
+#!/bin/bash
+# The logic to start up your application should be put in this
+# script. The application will work only if it binds to
+# $OPENSHIFT_INTERNAL_IP:8080
+
+# debug
+# set -x
+
+#loads VERSION, DEPS_PARAMS, ID, LOG_FILE, PLAY_COMMAND="${OPENSHIFT_DATA_DIR}play-${VERSION}/play"
+. ${OPENSHIFT_REPO_DIR}.openshift/action_hooks/load_config
+
+if [[ ! $? -eq 0 ]]; then
+	exit $?
+fi
+
+if [[ ! -f $PLAY_COMMAND ]]; then
+	echo "Error: couldn't find play executable at $PLAY_COMMAND"
+	exit 1
+fi
+
+## stop play application
+${OPENSHIFT_REPO_DIR}.openshift/action_hooks/stop
+
+if [[ ! $? -eq 0 ]]; then
+	echo "Error: could not stop play application"
+	exit 1
+fi
+
+cd "$OPENSHIFT_REPO_DIR"
+
+# clean everything
+echo "$PLAY_COMMAND clean" >> $LOG_FILE
+$PLAY_COMMAND clean &> $LOG_FILE
+
+echo "$PLAY_COMMAND deps $DEPS_PARAMS -Divy.home=${OPENSHIFT_TMP_DIR}ivy2/" >> $LOG_FILE
+$PLAY_COMMAND deps $DEPS_PARAMS -Divy.home=${OPENSHIFT_TMP_DIR}ivy2/ &> $LOG_FILE
+
+if [[ ! $? -eq 0 ]]; then
+	echo "Error: could not update dependencies"
+	echo "Error executing '$PLAY_COMMAND $DEPS_PARAMS'"
+	exit 1
+fi
+
+export PLAY_LOG_PATH=${OPENSHIFT_LOG_DIR}
+echo "$PLAY_COMMAND start --%$ID $PLAY_PARAMS" >> $LOG_FILE
+nohup bash -c "$PLAY_COMMAND start --%$ID $PLAY_PARAMS &> $LOG_FILE" &> /dev/null &
+
+if [[ ! $? -eq 0 ]]; then
+	echo "Error: starting play application"
+	echo "Error executing '$APP_COMMAND'"
+	exit 1
+fi
+
+exit 0

@@ -1,0 +1,64 @@
+#!/bin/bash
+# The logic to stop your application should be put in this script.
+
+# debug
+# set -x
+
+#loads VERSION, DEPS_PARAMS, ID, LOG_FILE, PLAY_COMMAND="${OPENSHIFT_DATA_DIR}play-${VERSION}/play"
+. ${OPENSHIFT_REPO_DIR}.openshift/action_hooks/load_config
+
+if [[ ! $? -eq 0 ]]; then
+	exit $?
+fi
+
+#kill play if it was running
+if [[ -f "server.pid" ]]; then
+
+	if [[ ! -f $PLAY_COMMAND ]]; then
+		echo "Error: couldn't find play executable at $PLAY_COMMAND"
+		exit 1
+	fi
+
+	echo "Stopping play application"
+	bash -c "$PLAY_COMMAND stop &> $LOG_FILE" &> /dev/null
+
+	#manually remove server.pid if it's there
+	if [[ -f "server.pid" ]]; then
+		echo "Manually removing server.pid file"
+		bash -c "rm server.pid &> $LOG_FILE" &> /dev/null
+	fi
+fi
+
+#it survived, try to kill it manually
+if [[ -n `ps -A | grep java` ]]; then
+
+	# try 5 times to kill it
+	for c in `seq 1 5`; do
+		echo "Trying to kill java proccess, attemp number $c"
+		bash -c "pkill java &> $LOG_FILE" &> /dev/null
+		sleep $c
+		#killed it
+		if [[ -z `ps -A | grep ' java$'` ]]; then
+			exit 0
+		fi
+	done
+
+	# try 5 times to kill it
+	for c in `seq 1 5`; do
+		echo "Trying to kill java proccess with -SIGKILL, attemp number $c"
+		bash -c "pkill -SIGKILL java &> $LOG_FILE" &> /dev/null
+		sleep $c
+		#killed it
+		if [[ -z `ps -A | grep ' java$'` ]]; then
+			exit 0
+		fi
+	done
+
+	#couldn't kill it
+	if [[ -n `ps -A | grep ' java$'` ]]; then
+		echo "Error: could not stop play application, error executing 'pkill java'"
+		exit 1
+	fi
+fi
+
+exit 0

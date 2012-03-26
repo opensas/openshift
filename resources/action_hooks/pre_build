@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# debug
+# set -x
+
+#loads VERSION, DEPS_PARAMS, ID, LOG_FILE, PLAY_COMMAND="${OPENSHIFT_DATA_DIR}play-${VERSION}/play"
+. ${OPENSHIFT_REPO_DIR}.openshift/action_hooks/load_config
+
+if [[ ! $? -eq 0 ]]; then
+	exit $?
+fi
+
+PLAY_PATH="play-$VERSION/"
+
+# use tmp file just in case it hangs up
+PLAY_ARCH="${OPENSHIFT_TMP_DIR}play-$VERSION.zip"
+
+cd "$OPENSHIFT_DATA_DIR"
+
+if [[ -d $PLAY_PATH ]]; then
+	echo "Play $VERSION already installed at `pwd`/$PLAY_PATH"
+else
+
+	echo "Installing play $VERSION"
+
+	if [[ -f $PLAY_ARCH ]]; then
+		rm $PLAY_ARCH
+	fi
+
+	PLAY_URL="http://download.playframework.org/releases/play-$VERSION.zip"
+	curl -o $PLAY_ARCH $PLAY_URL
+
+	if [[ ! -f $PLAY_ARCH ]]; then
+		echo "Error downloading play $VERSION from $PLAY_URL"
+		exit -1
+	fi
+
+	unzip "$PLAY_ARCH"
+	rm $PLAY_ARCH
+
+	PLAY_FULL_PATH="${OPENSHIFT_DATA_DIR}${PLAY_PATH}"
+
+	if [[ ! -d $PLAY_FULL_PATH ]]; then
+		echo "Error installing play $VERSION to $PLAY_FULL_PATH"
+		exit -1
+	fi
+
+	#verify that the desired version installed successfully
+	if [[ ! `${PLAY_FULL_PATH}play version | tail -1` = $VERSION ]]; then
+		echo "Error installing play $VERSION to $PLAY_FULL_PATH"
+		rm -fr $PLAY_FULL_PATH
+		exit -1
+	fi
+
+	#cleanup, remove other play versions
+	for old in [play-]*; do 
+		# avoid showing "Removing version [play-]*" message
+		if [[ -d $old ]]; then
+			if [[ $old = "play-$VERSION" ]]; then
+				echo "Skipping current version version $old"
+			else
+				echo "Removing version $old"
+				rm -fr $old
+			fi
+		fi
+	done
+
+fi
+
+exit 0

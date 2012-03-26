@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# debug
+# set -x
+
+# check needed vars
+if [[ -z $OPENSHIFT_REPO_DIR ]]; then
+	echo "Error: OPENSHIFT_REPO_DIR not defined"
+	return 1
+fi
+
+if [[ -z $OPENSHIFT_DATA_DIR ]]; then
+	echo "Error: OPENSHIFT_DATA_DIR not defined"
+	return 1
+fi
+
+if [[ -z $OPENSHIFT_TMP_DIR ]]; then
+	echo "Error: OPENSHIFT_TMP_DIR not defined"
+	return 1
+fi
+
+if [[ -z $OPENSHIFT_LOG_DIR ]]; then
+	echo "Error: OPENSHIFT_LOG_DIR not defined"
+	return 1
+fi
+
+# version of play framework to dowload and install
+VERSION="1.2.4"
+DEPS_PARAMS="--forProd --clearcache"
+ID="openshift"
+PLAY_PARAMS=""
+
+PLAY_CONFIG_FILE="${OPENSHIFT_REPO_DIR}conf/application.conf"
+
+if [[ -f $PLAY_CONFIG_FILE ]]; then
+
+	function read_conf {
+		local key=$1
+		local default=$2
+		local result=`grep "^$key[ |=]" $PLAY_CONFIG_FILE`
+
+		# key not found
+		if [[ -z "$result" ]]; then
+			echo $default
+		else
+			result=`echo "$result" | grep -oP "=.*" | cut -b 1 --complement`
+			echo $result
+		fi
+	}
+
+	VERSION=$(read_conf "openshift.play.version" $VERSION)
+	DEPS_PARAMS=$(read_conf "openshift.deps.params" $DEPS_PARAMS)
+	ID=$(read_conf "openshift.id" $ID)
+	PLAY_PARAMS=$(read_conf "openshift.play.params" $PLAY_PARAMS)
+fi
+
+# validate version
+if [ "$VERSION" \< "1.2.3" ]; then
+	echo "Error: version $VERSION not supported, use version 1.2.3 or higher"
+	return 1
+fi
+
+LOG_FILE="${OPENSHIFT_LOG_DIR}system.out"
+PLAY_COMMAND="${OPENSHIFT_DATA_DIR}play-${VERSION}/play"
+
+return 0

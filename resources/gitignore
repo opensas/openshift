@@ -2,13 +2,15 @@
 .*
 # except for .gitignore
 !.gitignore
+# and .openshift
+!.openshift
 
 # Ignore Play! working directory #
 db
 eclipse
 log
 logs
-#precompiled
+precompiled
 tmp
 test-result
 eclipse
